@@ -1,0 +1,22 @@
+{
+  "tag_key": "LightsOut",
+  "tag_value": "enabled",
+  "resources": [
+    {
+      "resource_type": "rds",
+      "priority": 1,
+      "enabled": true
+    },
+    {
+      "resource_type": "ec2",
+      "priority": 2,
+      "enabled": true
+    },
+    {
+      "resource_type": "asg",
+      "priority": 3,
+      "enabled": true
+    }
+  ],
+  "dry_run": false
+}
