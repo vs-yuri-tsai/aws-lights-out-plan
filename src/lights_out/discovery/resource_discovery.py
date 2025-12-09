@@ -44,15 +44,20 @@ def discover_resources(config: LightsOutConfig, region: Optional[str] = None) ->
         
         # Paginate through all tagged resources
         paginator = client.get_paginator("get_resources")
-        page_iterator = paginator.paginate(
-            TagFilters=[
+        paginate_kwargs = {
+            "TagFilters": [
                 {
                     "Key": config.tag_key,
                     "Values": [config.tag_value]
                 }
-            ],
-            ResourceTypeFilters=resource_type_filters
-        )
+            ]
+        }
+        
+        # Only add ResourceTypeFilters if we have specific types enabled
+        if resource_type_filters:
+            paginate_kwargs["ResourceTypeFilters"] = resource_type_filters
+        
+        page_iterator = paginator.paginate(**paginate_kwargs)
         
         priority_map = {rc.resource_type: rc.priority for rc in config.resources if rc.enabled}
         
@@ -94,7 +99,7 @@ def _build_resource_type_filters(config: LightsOutConfig) -> List[str]:
         config: LightsOutConfig
     
     Returns:
-        List of resource type filters
+        List of resource type filters (empty list if none enabled)
     """
     filters = []
     for resource_config in config.resources:
@@ -108,7 +113,7 @@ def _build_resource_type_filters(config: LightsOutConfig) -> List[str]:
         elif resource_config.resource_type == ResourceType.ASG:
             filters.append("autoscaling:autoScalingGroup")
     
-    return filters if filters else None  # None means all resource types
+    return filters
 
 
 def _extract_resource_type(arn: str) -> Optional[ResourceType]:
