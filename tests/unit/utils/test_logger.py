@@ -4,7 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 # Import the actual implementation
-from utils.logger import setup_logger
+from src.lambda_function.utils.logger import setup_logger
 
 
 def test_logger_outputs_json():
