@@ -9,8 +9,8 @@
 | Task | Owner | Status | Notes |
 |------|-------|--------|-------|
 | 建立專案結構 | - | 🔲 | src/lambda_function/ 目錄與 __init__.py |
-| 實作 utils/logger.py | - | 🔲 | 結構化 JSON logging |
-| 實作 core/config.py | - | 🔲 | SSM 配置載入與驗證 |
+| 實作 utils/logger.py | - | ✅ | 結構化 JSON logging |
+| 實作 core/config.py | - | ✅ | SSM 配置載入與驗證 |
 | 實作 discovery/base.py | - | 🔲 | DiscoveredResource 與 ResourceDiscovery 介面 |
 | 實作 discovery/tag_discovery.py | - | 🔲 | Tag-based 資源發現 |
 | 實作 handlers/base.py | - | 🔲 | ResourceHandler 抽象類別 |
@@ -70,5 +70,5 @@
 ## Done Log
 
 | Date | Task | Agent | Notes |
-|------|------|-------|-------|
-| 2025-12-09 | 專案規劃與文件建立 | Claude | CLAUDE.md, AGENTS.md, 部署指南等 |
+| 2025-12-12 | 實作 utils/logger.py | Gemini CLI | 已完成 |
+| 2025-12-12 | 實作 core/config.py | Gemini CLI | 依據 TDD 完成實作 |
