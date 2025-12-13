@@ -11,7 +11,7 @@
 | 建立專案結構 | - | 🔲 | src/lambda_function/ 目錄與 __init__.py |
 | 實作 utils/logger.py | - | ✅ | 結構化 JSON logging |
 | 實作 core/config.py | - | ✅ | SSM 配置載入與驗證 |
-| 實作 discovery/base.py | - | 🔲 | DiscoveredResource 與 ResourceDiscovery 介面 |
+| 實作 discovery/base.py | Gemini CLI | ✅ | DiscoveredResource 與 ResourceDiscovery 介面 |
 | 實作 discovery/tag_discovery.py | - | 🔲 | Tag-based 資源發現 |
 | 實作 handlers/base.py | - | 🔲 | ResourceHandler 抽象類別 |
 | 實作 handlers/ecs_service.py | - | 🔲 | ECS Service 啟停邏輯 |
@@ -72,3 +72,4 @@
 | Date | Task | Agent | Notes |
 | 2025-12-12 | 實作 utils/logger.py | Gemini CLI | 已完成 |
 | 2025-12-12 | 實作 core/config.py | Gemini CLI | 依據 TDD 完成實作 |
+| 2025-12-12 | 實作 discovery/base.py | Gemini CLI | 依據 TDD 完成介面定義與實作 |
