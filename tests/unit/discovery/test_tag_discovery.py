@@ -4,6 +4,7 @@ from unittest.mock import patch, MagicMock, call
 from src.lambda_function.discovery.base import DiscoveredResource
 from src.lambda_function.discovery.tag_discovery import TagDiscovery
 
+
 @pytest.fixture
 def mock_boto_client():
     """Fixture to mock the boto3 client and its get_resources method."""
