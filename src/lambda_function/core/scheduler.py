@@ -25,6 +25,7 @@ class Scheduler:
 
         Raises:
             ZoneInfoNotFoundError: If the provided timezone string is invalid.
+            ValueError: If work_start_time is not before work_end_time.
         """
         try:
             self.timezone = ZoneInfo(timezone)
@@ -36,7 +37,27 @@ class Scheduler:
         self.work_end_time = work_end_time
 
         if not (self.work_start_time < self.work_end_time):
-            raise ValueError("work_start_time must be before work_end_time and within a 24-hour period.")
+            raise ValueError("work_start_time must be before work_end_time.")
+
+    def _normalize_to_timezone(self, dt: datetime) -> datetime:
+        """
+        Normalizes a datetime to the scheduler's timezone.
+
+        For naive datetimes, assumes the time is already in the scheduler's timezone.
+        For timezone-aware datetimes, converts to the scheduler's timezone.
+
+        Args:
+            dt (datetime): The datetime to normalize.
+
+        Returns:
+            datetime: Timezone-aware datetime in the scheduler's timezone.
+        """
+        if dt.tzinfo is None:
+            # Naive datetime: treat as scheduler's timezone
+            return dt.replace(tzinfo=self.timezone)
+        else:
+            # Timezone-aware: convert to scheduler's timezone
+            return dt.astimezone(self.timezone)
 
     def is_workday(self, dt: datetime) -> bool:
         """
@@ -49,12 +70,7 @@ class Scheduler:
         Returns:
             bool: True if it's a workday, False otherwise.
         """
-        # If naive datetime, localize it to the scheduler's timezone first
-        if dt.tzinfo is None:
-            dt_in_tz = dt.replace(tzinfo=self.timezone)
-        else:
-            # Convert timezone-aware datetime to the scheduler's timezone
-            dt_in_tz = dt.astimezone(self.timezone)
+        dt_in_tz = self._normalize_to_timezone(dt)
         return dt_in_tz.weekday() in self.work_days
 
     def is_working_hours(self, dt: datetime) -> bool:
@@ -69,12 +85,7 @@ class Scheduler:
         Returns:
             bool: True if it's within working hours, False otherwise.
         """
-        # If naive datetime, localize it to the scheduler's timezone first
-        if dt.tzinfo is None:
-            dt_in_tz = dt.replace(tzinfo=self.timezone)
-        else:
-            # Convert timezone-aware datetime to the scheduler's timezone
-            dt_in_tz = dt.astimezone(self.timezone)
+        dt_in_tz = self._normalize_to_timezone(dt)
         current_time = dt_in_tz.time()
         # Working hours are inclusive of start_time and exclusive of end_time
         return self.work_start_time <= current_time < self.work_end_time
@@ -90,5 +101,9 @@ class Scheduler:
         Returns:
             bool: True if it's during work time, False otherwise.
         """
-        return self.is_workday(dt) and self.is_working_hours(dt)
+        # Optimize: normalize once and check both conditions
+        dt_in_tz = self._normalize_to_timezone(dt)
+        is_valid_day = dt_in_tz.weekday() in self.work_days
+        is_valid_hours = self.work_start_time <= dt_in_tz.time() < self.work_end_time
+        return is_valid_day and is_valid_hours
 
