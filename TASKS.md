@@ -15,7 +15,7 @@
 | 實作 discovery/tag_discovery.py | Gemini CLI | ✅ | Tag-based 資源發現 |
 | 實作 handlers/base.py | Gemini CLI | ✅ | ResourceHandler 抽象類別 |
 | 實作 handlers/ecs_service.py | Gemini CLI | ✅ | ECS Service 啟停邏輯 |
-| 實作 core/scheduler.py | - | 🔲 | 時區/工作日判斷 |
+| 實作 core/scheduler.py | - | ✅ | 時區/工作日判斷 |
 | 實作 core/orchestrator.py | - | 🔲 | 執行協調器 |
 | 實作 app.py | - | 🔲 | Lambda handler |
 | 撰寫單元測試 | Gemini CLI | 🔄 | tests/ 目錄，使用 moto。已完成 tests/unit/test_utils_logger.py 及 tests/unit/handlers/test_base.py 的撰寫。 |
@@ -75,4 +75,4 @@
 | 2025-12-12 | 實作 discovery/base.py | Gemini CLI | 依據 TDD 完成介面定義與實作 |
 | 2025-12-12 | 實作 discovery/tag_discovery.py | Gemini CLI | 依據 TDD 完成實作
 | 2025-12-15 | 實作 handlers/base.py | Gemini CLI | 依據 TDD 完成抽象類別實作
-| 2025-12-15 | 實作 handlers/ecs_service.py | Gemini CLI | 已完成 ECS Service 啟停邏輯的實作 |
+| 2025-12-16 | 實作 core/scheduler.py | Gemini CLI | 已完成時區/工作日判斷的實作 |
