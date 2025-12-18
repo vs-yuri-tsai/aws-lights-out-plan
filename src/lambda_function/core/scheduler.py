@@ -107,3 +107,8 @@ class Scheduler:
         is_valid_hours = self.work_start_time <= dt_in_tz.time() < self.work_end_time
         return is_valid_day and is_valid_hours
 
+def get_schedule(resource, schedule_tag):
+    """
+    Gets the schedule for a resource.
+    """
+    return resource.tags.get(schedule_tag)
