@@ -20,6 +20,8 @@ export default defineConfig({
       "@": "./src",
       "@core": "./src/core",
       "@handlers": "./src/handlers",
+      "@discovery": "./src/discovery",
+      "@utils": "./src/utils",
     },
   },
 });

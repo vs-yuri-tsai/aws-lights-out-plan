@@ -4,7 +4,6 @@
     "module": "ES2022",
     "lib": ["ES2022"],
     "moduleResolution": "node",
-    "rootDir": "./src",
     "outDir": "./dist",
 
     // Strict Type Checking
@@ -20,6 +19,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
 
     // Path Aliases
     "baseUrl": ".",
@@ -31,6 +31,6 @@
       "@utils/*": ["src/utils/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
