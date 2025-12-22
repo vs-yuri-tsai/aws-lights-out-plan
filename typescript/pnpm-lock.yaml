@@ -36,8 +36,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       zod:
-        specifier: ^4.2.1
-        version: 4.2.1
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@types/aws-lambda':
         specifier: ^8.10.159
@@ -1045,8 +1045,8 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  zod@4.2.1:
-    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
 
@@ -2389,4 +2389,4 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  zod@4.2.1: {}
+  zod@3.25.76: {}
