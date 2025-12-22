@@ -9,6 +9,7 @@ import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 import { LRUCache } from "lru-cache";
 import yaml from "js-yaml";
 import { z } from "zod";
+import type { Config } from "@/types";
 import { setupLogger } from "@utils/logger";
 
 const logger = setupLogger("lights-out:config");
@@ -21,14 +22,16 @@ const logger = setupLogger("lights-out:config");
 const ConfigSchema = z.object({
   version: z.string(),
   environment: z.string(),
-  discovery: z.record(z.unknown()),
-  // Optional fields that may be present in config
-  schedule: z.record(z.unknown()).optional(),
-  resources: z.array(z.unknown()).optional(),
-  handlers: z.record(z.unknown()).optional(),
-});
-
-export type Config = z.infer<typeof ConfigSchema>;
+  discovery: z.object({
+    method: z.string(),
+    tags: z.record(z.string()).optional(),
+    resource_types: z.array(z.string()).optional(),
+  }).passthrough(),
+  settings: z.object({
+    schedule_tag: z.string().optional(),
+  }).passthrough().optional(),
+  resource_defaults: z.record(z.record(z.unknown())).optional(),
+}).passthrough();
 
 /**
  * Base exception for configuration errors.

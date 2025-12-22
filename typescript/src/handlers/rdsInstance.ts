@@ -13,7 +13,7 @@ import {
   type DBInstance,
 } from '@aws-sdk/client-rds';
 import type { Logger } from 'pino';
-import type { DiscoveredResource } from '@discovery/base';
+import type { DiscoveredResource } from '@/types';
 import { setupLogger } from '@utils/logger';
 import { getResourceDefaults, type Config, type HandlerResult, type ResourceHandler } from '@handlers/base';
 

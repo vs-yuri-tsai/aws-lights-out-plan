@@ -4,7 +4,7 @@
  * Maps resource types to their handler classes.
  */
 
-import type { DiscoveredResource } from '@discovery/base';
+import type { DiscoveredResource } from '@/types';
 import type { ResourceHandler, Config } from '@handlers/base';
 import { ECSServiceHandler } from '@handlers/ecsService';
 import { RDSInstanceHandler } from '@handlers/rdsInstance';

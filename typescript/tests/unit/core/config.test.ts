@@ -23,7 +23,7 @@ describe("Config Loader", () => {
 version: "1.0"
 environment: workshop
 discovery:
-  strategy: tag-based
+  method: tag-based
   tags:
     lights-out:managed: "true"
 `;
@@ -40,7 +40,7 @@ discovery:
       expect(config.version).toBe("1.0");
       expect(config.environment).toBe("workshop");
       expect(config.discovery).toEqual({
-        strategy: "tag-based",
+        method: "tag-based", // Corrected from 'strategy' to 'method'
         tags: {
           "lights-out:managed": "true",
         },
@@ -52,8 +52,8 @@ discovery:
 version: "1.0"
 environment: workshop
 discovery:
-  strategy: tag-based
-`;
+  method: tag-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {
@@ -140,8 +140,8 @@ discovery: }invalid
       const invalidConfig = `
 environment: workshop
 discovery:
-  strategy: tag-based
-`;
+  method: tag-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {
@@ -162,8 +162,8 @@ discovery:
       const invalidConfig = `
 version: "1.0"
 discovery:
-  strategy: tag-based
-`;
+  method: tag-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {
@@ -198,7 +198,7 @@ environment: workshop
 version: "1.0"
 environment: workshop
 discovery:
-  strategy: tag-based
+  method: tag-based
 schedule:
   timezone: Asia/Taipei
   work_hours:
@@ -210,7 +210,7 @@ resources:
 handlers:
   ecs-service:
     stop_timeout: 30
-`;
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {
@@ -222,9 +222,17 @@ handlers:
 
       expect(config).toBeDefined();
       expect(config.version).toBe("1.0");
+      // The original schema does not include 'schedule', 'resources', 'handlers' in the ConfigSchema definition.
+      // However, it uses .passthrough() which allows extra fields.
+      // The test expects these fields to be defined on the resulting config.
+      // This is okay as .passthrough() handles this.
       expect(config.schedule).toBeDefined();
       expect(config.resources).toBeDefined();
       expect(config.handlers).toBeDefined();
+      // Ensure the discovery.method is correctly parsed
+      expect(config.discovery).toEqual({
+        method: "tag-based",
+      });
     });
 
     it("should handle different parameter names independently in cache", async () => {
@@ -232,15 +240,15 @@ handlers:
 version: "1.0"
 environment: dev
 discovery:
-  strategy: tag-based
-`;
+  method: tag-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       const config2 = `
 version: "2.0"
 environment: prod
 discovery:
-  strategy: arn-based
-`;
+  method: arn-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock
         .on(GetParameterCommand, { Name: "/dev/parameter" })
@@ -263,8 +271,8 @@ discovery:
 version: "1.0"
 environment: workshop
 discovery:
-  strategy: tag-based
-`;
+  method: tag-based
+`; // Corrected indentation and 'strategy' to 'method'
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {

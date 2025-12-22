@@ -6,61 +6,9 @@
  * on a specific AWS resource type (e.g., ECS Service, RDS Instance).
  */
 
-/**
- * Standardized result structure for handler operations.
- *
- * This interface represents the outcome of a handler operation (start/stop)
- * and is used by the orchestrator to aggregate results.
- */
-export interface HandlerResult {
-  /**
-   * Whether the operation succeeded
-   */
-  success: boolean;
+import type { HandlerResult, Config } from "@/types";
 
-  /**
-   * The action performed ("start" or "stop")
-   */
-  action: string;
-
-  /**
-   * Type of resource (e.g., "ecs-service", "rds-instance")
-   */
-  resourceType: string;
-
-  /**
-   * Human-readable resource identifier
-   */
-  resourceId: string;
-
-  /**
-   * Human-readable message describing the result
-   */
-  message: string;
-
-  /**
-   * Optional dict containing the resource state before operation
-   */
-  previousState?: Record<string, unknown>;
-
-  /**
-   * Optional error message if the operation failed
-   */
-  error?: string;
-}
-
-/**
- * Configuration structure from SSM Parameter Store.
- *
- * Simplified type - just enough structure for type safety.
- */
-export interface Config {
-  version: string;
-  environment: string;
-  discovery: Record<string, unknown>;
-  resource_defaults?: Record<string, Record<string, unknown>>;
-  [key: string]: unknown;
-}
+export type { HandlerResult, Config };
 
 /**
  * Interface that all concrete resource handlers must implement.
