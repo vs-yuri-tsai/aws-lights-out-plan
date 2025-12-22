@@ -1,37 +1,37 @@
-# Python → TypeScript 迁移计划：PoC 完整验证
+# Python → TypeScript 遷移計畫：PoC 完整驗證
 
-## 概览
+## 概覽
 
-将现有的 Python Lambda 函数完整迁移至 TypeScript，验证技术可行性并进行性能比较。采用 TDD 方式确保功能对等。
+將現有的 Python Lambda 函式完整遷移至 TypeScript，驗證技術可行性並進行效能比较。採用 TDD 方式確保功能對等。
 
-**PoC 目标：**
-- ✅ 验证开关灯完整流程（discover → orchestrate → start/stop）
-- ✅ 性能比较（cold start、warm execution、bundle size）
-- ✅ 完整功能迁移（10 个模块 + 对等测试）
-- ✅ 为生产部署提供参考数据
+**PoC 目標：**
+- ✅ 驗證開關燈完整流程（discover → orchestrate → start/stop）
+- ✅ 效能比较（cold start、warm execution、bundle size）
+- ✅ 完整功能遷移（10 個模塊 + 對等測試）
+- ✅ 為生產部署提供參考資料
 
-**精简设计原则：**
-- **目录结构：** 简单的 `/typescript` 目录（不需要复杂 monorepo）
-- **部署方式：** 独立 TypeScript 函数（不需要双函数部署）
-- **测试策略：** aws-sdk-client-mock + vitest（80% 覆盖率）
-- **时间策略：** 按模块渐进式迁移，无固定截止日期
+**精簡設計原則：**
+- **目錄結構：** 簡單的 `/typescript` 目錄（不需要複雜 monorepo）
+- **部署方式：** 獨立 TypeScript 函式（不需要雙函式部署）
+- **測試策略：** aws-sdk-client-mock + vitest（80% 覆蓋率）
+- **時间策略：** 按模塊漸進式遷移，無固定截止日期
 
 ---
 
-## 1. 精简目录结构（PoC 版本）
+## 1. 精簡目錄結構（PoC 版本）
 
 ```
 aws-lights-out-plan/
-├── src/lambda_function/             # 保持现有 Python 代码不动
-├── tests/                           # 现有 Python 测试
+├── src/lambda_function/             # 保持現有 Python 程式碼不動
+├── tests/                           # 現有 Python 測試
 ├── requirements.txt
 ├── pytest.ini
 │
 └── typescript/                      # 新建 TypeScript PoC
-    ├── package.json                 # TS 专案依赖
+    ├── package.json                 # TS 專案相依套件
     ├── tsconfig.json                # Strict mode + path aliases
-    ├── vitest.config.ts             # 覆盖率 80% 门槛
-    ├── serverless.yml               # 独立部署配置
+    ├── vitest.config.ts             # 覆蓋率 80% 門檻
+    ├── serverless.yml               # 獨立部署設定
     ├── src/
     │   ├── index.ts                 # Lambda handler (原 app.py)
     │   ├── core/
@@ -52,24 +52,24 @@ aws-lights-out-plan/
     │   ├── integration/
     │   └── helpers.ts               # Mock 工具（替代 conftest.py）
     └── docs/
-        ├── PERFORMANCE.md           # 性能测试报告
-        └── MIGRATION-NOTES.md       # 迁移记录
+        ├── PERFORMANCE.md           # 效能測試報告
+        └── MIGRATION-NOTES.md       # 遷移記錄
 
 ```
 
-**为什么精简：**
-- ❌ 不移动 Python 代码（保持现有结构，减少风险）
-- ❌ 不需要 monorepo（只有一个 TS 专案）
-- ❌ 不需要 /shared 工具（PoC 阶段手动验证即可）
-- ✅ 独立的 TypeScript 目录（清楚隔离）
+**為什么精簡：**
+- ❌ 不移動 Python 程式碼（保持現有結構，减少風險）
+- ❌ 不需要 monorepo（只有一個 TS 專案）
+- ❌ 不需要 /shared 工具（PoC 階段手動驗證即可）
+- ✅ 獨立的 TypeScript 目錄（清楚隔離）
 
 ---
 
-## 2. Serverless Framework 配置（精简版）
+## 2. Serverless Framework 設定（精簡版）
 
-**关键文件：** `typescript/serverless.yml`
+**關鍵文件：** `typescript/serverless.yml`
 
-### 核心设计：独立 TypeScript 函数
+### 核心設計：獨立 TypeScript 函式
 
 ```yaml
 service: lights-out-ts
@@ -77,7 +77,7 @@ service: lights-out-ts
 provider:
   name: aws
   region: ${opt:region, 'ap-southeast-1'}
-  stage: ${opt:stage, 'poc'}  # 使用独立 stage 避免冲突
+  stage: ${opt:stage, 'poc'}  # 使用獨立 stage 避免冲突
 
   iam:
     role:
@@ -126,63 +126,63 @@ pnpm install
 serverless deploy --stage poc
 ```
 
-**精简理由：**
-- ❌ 不需要双函数配置（Python 保持独立部署）
-- ❌ 不需要 runtime switching（PoC 使用独立 stage）
-- ✅ 简单直接，专注于验证 TypeScript 实作
+**精簡理由：**
+- ❌ 不需要雙函式設定（Python 保持獨立部署）
+- ❌ 不需要 runtime switching（PoC 使用獨立 stage）
+- ✅ 簡單直接，專注於驗證 TypeScript 實作
 
 ---
 
-## 3. 迁移策略：按复杂度分阶段执行
+## 3. 遷移策略：按複雜度分階段執行
 
-### 3.1 模块迁移顺序（从简单到复杂）
+### 3.1 模塊遷移顺序（从簡單到複雜）
 
-| 阶段 | 模块 | LOC | 复杂度 | 关键挑战 | 优先级 |
+| 階段 | 模塊 | LOC | 複雜度 | 關鍵挑战 | 優先順序級 |
 |------|------|-----|--------|---------|--------|
-| **Phase 0** | `utils/logger` | 167 | ★☆☆☆☆ | 无依赖，建立测试模式 | **先做** |
+| **Phase 0** | `utils/logger` | 167 | ★☆☆☆☆ | 无相依套件，建立測試模式 | **先做** |
 | **Phase 1** | `discovery/base` | 34 | ★☆☆☆☆ | Dataclass → Interface | 2 |
 | **Phase 1** | `handlers/base` | 159 | ★★☆☆☆ | Abstract class → TS abstract | 3 |
 | **Phase 1** | `handlers/factory` | 74 | ★☆☆☆☆ | Dict → Map | 4 |
 | **Phase 2** | `core/config` | 70 | ★★☆☆☆ | `@lru_cache` → LRU package | 5 |
 | **Phase 2** | `core/scheduler` | 113 | ★★★☆☆ | `zoneinfo` → date-fns-tz | 6 |
 | **Phase 3** | `discovery/tagDiscovery` | 224 | ★★★★☆ | boto3 pagination → SDK v3 | 7 |
-| **Phase 3** | `handlers/ecsService` | 383 | ★★★★☆ | boto3 ECS → SDK v3, Waiters | **最难** |
+| **Phase 3** | `handlers/ecsService` | 383 | ★★★★☆ | boto3 ECS → SDK v3, Waiters | **最難** |
 | **Phase 4** | `core/orchestrator` | 151 | ★★★☆☆ | Type guards | 9 |
 | **Phase 4** | `index.ts` (app.py) | 218 | ★★★☆☆ | Lambda handler entry | 10 |
 
-**总计：** ~1,592 LOC Python → ~2,100 LOC TypeScript（预计 +32% 用于显式类型）
+**總計：** ~1,592 LOC Python → ~2,100 LOC TypeScript（預计 +32% 用于顯式类型）
 
-### 3.2 TDD 工作流程（每个模块）
+### 3.2 TDD 工作流程（每個模塊）
 
-1. **测试先行：** 将 Python 测试档转写为 TypeScript/vitest
-2. **实作：** 写 TypeScript 实作直到测试通过
-3. **验证覆盖率：** 确保 TS 覆盖率 ≥ Python（允许 ±5% 误差）
-4. **提交：** 同时提交测试 + 实作
+1. **測試先行：** 將 Python 測試檔转写為 TypeScript/vitest
+2. **實作：** 写 TypeScript 實作直到測試通过
+3. **驗證覆蓋率：** 確保 TS 覆蓋率 ≥ Python（允许 ±5% 误差）
+4. **提交：** 同時提交測試 + 實作
 
-**关键原则：**
-- 每个 Python 测试必须有 1:1 对应的 TS 测试
+**關鍵原則：**
+- 每個 Python 測試必須有 1:1 对應的 TS 測試
 - `pytest.mark.parametrize` → `test.each()` 或 `describe.each()`
-- Moto 状态式 mock → aws-sdk-client-mock + 自定义状态 helper
+- Moto 狀態式 mock → aws-sdk-client-mock + 自定义狀態 helper
 
 ---
 
-## 4. 技术挑战与解决方案
+## 4. 技術挑战与解决方案
 
-### 4.1 Python 特性迁移对照表
+### 4.1 Python 特性遷移对照表
 
 | Python 特性 | TypeScript 方案 | 套件 |
 |------------|----------------|------|
 | `@dataclass` | `interface` + `class` 或 `type` | 内建 |
-| `@lru_cache` | LRU 缓存 | `lru-cache` |
-| `zoneinfo` (时区) | 时区处理 | `date-fns-tz` |
-| `PyYAML` | YAML 解析 + Zod 验证 | `js-yaml` + `zod` |
+| `@lru_cache` | LRU 快取 | `lru-cache` |
+| `zoneinfo` (時區) | 時區處理 | `date-fns-tz` |
+| `PyYAML` | YAML 解析 + Zod 驗證 | `js-yaml` + `zod` |
 | `boto3.client('ecs')` | ECS Client | `@aws-sdk/client-ecs` |
-| `boto3` pagination | Async iterator | `paginateXxx` 或手动 loop |
+| `boto3` pagination | Async iterator | `paginateXxx` 或手動 loop |
 | `boto3` waiters | Waiters API | `waitUntilXxx` |
 
-### 4.2 关键技术细节
+### 4.2 關鍵技術细節
 
-#### A. LRU 缓存实作（config.ts）
+#### A. LRU 快取實作（config.ts）
 
 ```typescript
 import { LRUCache } from 'lru-cache';
@@ -199,7 +199,7 @@ export async function loadConfigFromSSM(parameterName: string): Promise<Config> 
 }
 ```
 
-#### B. 时区处理（scheduler.ts）
+#### B. 時區處理（scheduler.ts）
 
 ```typescript
 import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
@@ -242,18 +242,18 @@ const paginator = paginateGetResources(
 
 for await (const page of paginator) {
   for (const resource of page.ResourceTagMappingList ?? []) {
-    // 处理资源
+    // 處理資源
   }
 }
 ```
 
 ---
 
-## 5. 测试策略：Moto → aws-sdk-client-mock
+## 5. 測試策略：Moto → aws-sdk-client-mock
 
-### 5.1 Vitest 配置
+### 5.1 Vitest 設定
 
-**关键文件：** `typescript/vitest.config.ts`
+**關鍵文件：** `typescript/vitest.config.ts`
 
 ```typescript
 import { defineConfig } from 'vitest/config';
@@ -285,24 +285,24 @@ export default defineConfig({
 
 ### 5.2 Mock 策略差异
 
-**Python (moto - 状态式):**
+**Python (moto - 狀態式):**
 ```python
 @mock_aws
 def test_ecs_start():
     ecs = boto3.client('ecs')
     ecs.create_cluster(clusterName='test')
     ecs.create_service(cluster='test', serviceName='my-service', desiredCount=0)
-    # 状态会被保留
+    # 狀態会被保留
 ```
 
-**TypeScript (aws-sdk-client-mock - 无状态):**
+**TypeScript (aws-sdk-client-mock - 无狀態):**
 ```typescript
 import { mockClient } from 'aws-sdk-client-mock';
 
 const ecsMock = mockClient(ECSClient);
 
 it('should start ECS service', async () => {
-  // 需要明确定义每个 command 的回传值
+  // 需要明确定义每個 command 的回传值
   ecsMock.on(DescribeServicesCommand).resolves({
     services: [{ desiredCount: 0, runningCount: 0 }]
   });
@@ -311,17 +311,17 @@ it('should start ECS service', async () => {
     service: { desiredCount: 1 }
   });
 
-  // 测试代码
+  // 測試程式碼
 });
 ```
 
-### 5.3 状态式 Mock Helper
+### 5.3 狀態式 Mock Helper
 
-**关键文件：** `typescript/tests/helpers.ts`
+**關鍵文件：** `typescript/tests/helpers.ts`
 
 ```typescript
 /**
- * 模拟 ECS 服务状态（替代 moto 的状态保留功能）
+ * 模拟 ECS 服务狀態（替代 moto 的狀態保留功能）
  */
 export class MockECSState {
   private services = new Map<string, any>();
@@ -347,24 +347,24 @@ export class MockECSState {
 
 ---
 
-## 6. 性能测试方案（PoC 关键验证）
+## 6. 效能測試方案（PoC 關鍵驗證）
 
-### 6.1 测试指标
+### 6.1 測試指標
 
-| 指标 | Python 基准 | TypeScript 目标 | 测量方法 |
+| 指標 | Python 基准 | TypeScript 目標 | 测量方法 |
 |------|-------------|----------------|----------|
 | **Cold Start** | TBD | < 3 秒 | CloudWatch Logs (Init Duration) |
 | **Warm Execution** | TBD | < 500 ms | CloudWatch Logs (Duration) |
 | **Bundle Size** | N/A (解释型) | < 5 MB | `du -h dist/` |
 | **Memory Usage** | 512 MB | 512 MB | CloudWatch Metrics (Max Memory Used) |
 
-### 6.2 性能测试脚本
+### 6.2 效能測試腳本
 
-**关键文件：** `typescript/scripts/performance-test.sh`
+**關鍵文件：** `typescript/scripts/performance-test.sh`
 
 ```bash
 #!/bin/bash
-# 性能测试脚本
+# 效能測試腳本
 
 FUNCTION_NAME="lights-out-ts-poc"
 ITERATIONS=10
@@ -385,21 +385,21 @@ echo "Analyzing results..."
 aws logs tail /aws/lambda/$FUNCTION_NAME --format short --since 1h | grep "REPORT"
 ```
 
-### 6.3 性能报告模板
+### 6.3 效能報告模板
 
-**关键文件：** `typescript/docs/PERFORMANCE.md`
+**關鍵文件：** `typescript/docs/PERFORMANCE.md`
 
 ```markdown
-# TypeScript vs Python 性能比较
+# TypeScript vs Python 效能比较
 
-## 测试环境
+## 測試環境
 - Region: ap-southeast-1
 - Memory: 512 MB
 - Payload: {"action": "status"}
 
 ## 结果
 
-| 指标 | Python | TypeScript | 差异 |
+| 指標 | Python | TypeScript | 差异 |
 |------|--------|-----------|------|
 | Cold Start (avg) | X ms | Y ms | +Z% |
 | Warm Execution (avg) | X ms | Y ms | +Z% |
@@ -412,11 +412,11 @@ aws logs tail /aws/lambda/$FUNCTION_NAME --format short --since 1h | grep "REPOR
 
 ---
 
-## 7. 依赖安装清单
+## 7. 相依套件安装清單
 
-### 7.1 TypeScript 运行时依赖
+### 7.1 TypeScript 运行時相依套件
 
-**关键文件：** `typescript/package.json`
+**關鍵文件：** `typescript/package.json`
 
 ```json
 {
@@ -469,123 +469,123 @@ aws logs tail /aws/lambda/$FUNCTION_NAME --format short --since 1h | grep "REPOR
 }
 ```
 
-**精简理由：**
-- ❌ 不需要 monorepo 配置（pnpm-workspace.yaml）
-- ❌ 不需要 verify-parity 脚本（PoC 手动验证即可）
-- ✅ 专注于开发、测试、部署流程
+**精簡理由：**
+- ❌ 不需要 monorepo 設定（pnpm-workspace.yaml）
+- ❌ 不需要 verify-parity 腳本（PoC 手動驗證即可）
+- ✅ 專注於開發、測試、部署流程
 
 ---
 
-## 8. PoC 成功标准
+## 8. PoC 成功標準
 
-### 完成检查清单
+### 完成檢查清單
 
-- [ ] **代码对等**
-  - [ ] 10 个 Python 模块都有 TS 对应实作
-  - [ ] 所有模块通过 TypeScript strict mode 编译
+- [ ] **程式碼對等**
+  - [ ] 10 個 Python 模塊都有 TS 对應實作
+  - [ ] 所有模塊通过 TypeScript strict mode 编译
 
-- [ ] **测试对等**
-  - [ ] 10 个测试档案 1:1 对应迁移
-  - [ ] 测试覆盖率：TypeScript ≥ 80%（与 Python 对等）
-  - [ ] 所有单元测试通过
-  - [ ] 集成测试通过
+- [ ] **測試對等**
+  - [ ] 10 個測試檔案 1:1 对應遷移
+  - [ ] 測試覆蓋率：TypeScript ≥ 80%（与 Python 對等）
+  - [ ] 所有單元測試通过
+  - [ ] 集成測試通过
 
-- [ ] **功能验证**
+- [ ] **功能驗證**
   - [ ] 部署至 `poc` stage 成功
-  - [ ] 手动测试 4 个 actions (start/stop/status/discover)
-  - [ ] 验证与 Python 版本功能对等（相同 payload → 相同结果）
+  - [ ] 手動測試 4 個 actions (start/stop/status/discover)
+  - [ ] 驗證与 Python 版本功能對等（相同 payload → 相同结果）
 
-- [ ] **性能验证（关键）**
+- [ ] **效能驗證（關鍵）**
   - [ ] Cold Start < 3 秒
   - [ ] Warm Execution < 500 ms
   - [ ] Bundle Size < 5 MB
-  - [ ] 完成性能比较报告（PERFORMANCE.md）
+  - [ ] 完成效能比较報告（PERFORMANCE.md）
 
-- [ ] **文档**
-  - [ ] `PERFORMANCE.md` (性能测试报告)
-  - [ ] `MIGRATION-NOTES.md` (迁移过程与技术挑战记录)
-  - [ ] 更新 `CLAUDE.md` 添加 TypeScript PoC 说明
+- [ ] **文檔**
+  - [ ] `PERFORMANCE.md` (效能測試報告)
+  - [ ] `MIGRATION-NOTES.md` (遷移过程与技術挑战記錄)
+  - [ ] 更新 `CLAUDE.md` 添加 TypeScript PoC 說明
 
 ---
 
-## 9. PoC 风险与缓解
+## 9. PoC 風險与緩解
 
-| 风险 | 机率 | 影响 | 缓解措施 |
+| 風險 | 机率 | 影響 | 緩解措施 |
 |------|------|------|----------|
-| AWS SDK v3 API 差异导致行为不一致 | 高 | 高 | 详细对比测试，必要时建立 adapter layer |
-| 测试覆盖率低于 80% | 中 | 中 | 严格遵循 TDD，每个模块完成后检查覆盖率 |
-| 时区计算差异（zoneinfo vs date-fns-tz） | 中 | 高 | 使用 parametrized 测试验证边界情况 |
-| 性能不如预期（Cold Start > 3s） | 中 | 低 | PoC 重点在验证，性能可后续优化（如使用 Lambda SnapStart） |
-| ECS Waiter 行为差异 | 低 | 中 | 详细测试 `waitUntilServicesStable` 超时和重试逻辑 |
+| AWS SDK v3 API 差异导致行為不一致 | 高 | 高 | 詳細對比測試，必要時建立 adapter layer |
+| 測試覆蓋率低于 80% | 中 | 中 | 严格遵循 TDD，每個模塊完成后檢查覆蓋率 |
+| 時區计算差异（zoneinfo vs date-fns-tz） | 中 | 高 | 使用 parametrized 測試驗證边界情况 |
+| 效能不如預期（Cold Start > 3s） | 中 | 低 | PoC 重点在驗證，效能可后續優化（如使用 Lambda SnapStart） |
+| ECS Waiter 行為差异 | 低 | 中 | 詳細測試 `waitUntilServicesStable` 超時和重试逻辑 |
 
-**PoC 失败处理：**
-- TypeScript PoC 独立于生产环境 Python 版本
-- 失败时可直接废弃 `/typescript` 目录
-- 成本仅为开发时间投入，无生产影响
+**PoC 失败處理：**
+- TypeScript PoC 獨立于生產環境 Python 版本
+- 失败時可直接废弃 `/typescript` 目錄
+- 成本仅為開發時间投入，无生產影響
 
 ---
 
-## 10. 关键档案清单（执行时参考）
+## 10. 關鍵檔案清單（執行時參考）
 
-| 优先级 | 档案路径 | 用途 |
+| 優先順序級 | 檔案路径 | 用途 |
 |-------|---------|------|
-| **P0** | `typescript/serverless.yml` | 独立 TypeScript 函数部署配置 |
-| **P0** | `typescript/package.json` | TS 依赖清单 + npm scripts |
-| **P0** | `typescript/tsconfig.json` | Strict mode 配置 + path aliases |
-| **P0** | `typescript/vitest.config.ts` | 测试配置（80% 门槛） |
-| **P1** | `typescript/tests/helpers.ts` | Mock 工具（状态式 ECS mock） |
-| **P1** | `typescript/scripts/performance-test.sh` | 性能测试脚本 |
-| **P2** | `typescript/src/handlers/ecsService.ts` | 最复杂模块（383 LOC） |
+| **P0** | `typescript/serverless.yml` | 獨立 TypeScript 函式部署設定 |
+| **P0** | `typescript/package.json` | TS 相依套件清單 + npm scripts |
+| **P0** | `typescript/tsconfig.json` | Strict mode 設定 + path aliases |
+| **P0** | `typescript/vitest.config.ts` | 測試設定（80% 門檻） |
+| **P1** | `typescript/tests/helpers.ts` | Mock 工具（狀態式 ECS mock） |
+| **P1** | `typescript/scripts/performance-test.sh` | 效能測試腳本 |
+| **P2** | `typescript/src/handlers/ecsService.ts` | 最複雜模塊（383 LOC） |
 | **P2** | `typescript/src/core/config.ts` | LRU cache + SSM 整合 |
-| **P2** | `typescript/src/core/scheduler.ts` | 时区处理逻辑 |
-| **P3** | `typescript/docs/PERFORMANCE.md` | 性能测试报告模板 |
+| **P2** | `typescript/src/core/scheduler.ts` | 時區處理逻辑 |
+| **P3** | `typescript/docs/PERFORMANCE.md` | 效能測試報告模板 |
 
 ---
 
-## 11. 下一步行动（立即可开始）
+## 11. 下一步行動（立即可开始）
 
 ### Phase 0：初始化 TypeScript PoC（30 分钟）
 
 ```bash
-# 1. 创建 TypeScript 目录
+# 1. 建立 TypeScript 目錄
 mkdir -p typescript/{src,tests,scripts,docs}
 
-# 2. 初始化专案
+# 2. 初始化專案
 cd typescript
 pnpm init
 
-# 3. 安装核心依赖
+# 3. 安装核心相依套件
 pnpm add @aws-sdk/client-ssm @aws-sdk/client-ecs @aws-sdk/client-resource-groups-tagging-api
 pnpm add date-fns date-fns-tz js-yaml lru-cache zod
 
-# 4. 安装开发依赖
+# 4. 安装開發相依套件
 pnpm add -D typescript @types/node @types/aws-lambda @types/js-yaml
 pnpm add -D vitest @vitest/coverage-v8 aws-sdk-client-mock
 pnpm add -D esbuild serverless serverless-esbuild
 
-# 5. 创建配置文件
-# - tsconfig.json（参考第 7.1 节）
-# - vitest.config.ts（参考第 5.1 节）
-# - serverless.yml（参考第 2 节）
+# 5. 建立設定文件
+# - tsconfig.json（參考第 7.1 節）
+# - vitest.config.ts（參考第 5.1 節）
+# - serverless.yml（參考第 2 節）
 ```
 
-### Phase 1：第一个模块验证（建立 TDD 流程）
+### Phase 1：第一個模塊驗證（建立 TDD 流程）
 
-**目标：迁移 `utils/logger.ts` 验证整体流程**
+**目標：遷移 `utils/logger.ts` 驗證整體流程**
 
-1. 创建 `src/utils/logger.ts`
-2. 创建 `tests/unit/utils/logger.test.ts`
-3. 运行 `pnpm test` 确认测试通过
-4. 运行 `pnpm test:coverage` 确认覆盖率 ≥ 80%
+1. 建立 `src/utils/logger.ts`
+2. 建立 `tests/unit/utils/logger.test.ts`
+3. 运行 `pnpm test` 确认測試通过
+4. 运行 `pnpm test:coverage` 确认覆蓋率 ≥ 80%
 
-### Phase 2-4：按模块复杂度迁移
+### Phase 2-4：按模塊複雜度遷移
 
-参考第 3.1 节顺序，逐步迁移剩余 9 个模块。
+參考第 3.1 節顺序，逐步遷移剩余 9 個模塊。
 
-### Phase 5：性能验证
+### Phase 5：效能驗證
 
 1. 部署至 `poc` stage
 2. 运行 `pnpm perf-test`
-3. 完成 `docs/PERFORMANCE.md` 报告
+3. 完成 `docs/PERFORMANCE.md` 報告
 
-**关键原则：每完成一个模块,立即验证测试和覆盖率，确保流程顺畅再继续下一个。**
+**關鍵原則：每完成一個模塊,立即驗證測試和覆蓋率，確保流程顺畅再繼續下一個。**

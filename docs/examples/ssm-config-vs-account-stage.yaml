@@ -1,0 +1,41 @@
+# SSM Parameter: /lights-out/stage/vs-account
+# VS Account Staging Environment Scheduling Configuration
+# Rule: Resources are shut down daily from 20:00 to 08:00
+
+version: "1.0"
+environment: stage
+project: vs-account
+
+discovery:
+  strategy: tag-based
+  tags:
+    lights-out:managed: "true"
+    lights-out:env: stage
+    lights-out:project: vs-account
+  resource_types:
+    - ecs:service
+    - rds:db
+
+schedule:
+  timezone: Asia/Taipei
+  work_hours:
+    start: "08:00"
+    end: "20:00"
+  # Stage environment also shuts down on weekends (more aggressive cost savings)
+  weekend_schedule:
+    enabled: true
+    # Shut down all day on weekends
+    keep_running: false
+
+handlers:
+  ecs-service:
+    stop_desired_count: 0
+    # VS Account may need more tasks to handle load
+    default_desired_count: 2
+  rds-db:
+    auto_restart_handling: true
+
+notifications:
+  sns_topic_arn: arn:aws:sns:ap-northeast-1:123456789012:vs-account-alerts
+  events:
+    - error_occurred
