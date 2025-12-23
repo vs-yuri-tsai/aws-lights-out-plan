@@ -3,7 +3,6 @@
  */
 
 // Export base types and utilities
-export type { HandlerResult, Config, ResourceHandler } from './base';
 export { getResourceDefaults } from './base';
 
 // Export concrete handler implementations

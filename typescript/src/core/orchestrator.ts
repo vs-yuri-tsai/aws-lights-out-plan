@@ -28,9 +28,6 @@ export class Orchestrator {
   /**
    * Discover resources using tag-based discovery.
    *
-   * **Simplified:** Directly creates TagDiscovery without strategy selection.
-   * PoC only supports tag-based discovery, so no need for abstraction.
-   *
    * @returns List of discovered resources
    */
   async discoverResources(): Promise<DiscoveredResource[]> {
@@ -64,12 +61,7 @@ export class Orchestrator {
 
   /**
    * Execute the lights-out plan for all discovered resources.
-   *
-   * **Simplified:**
-   * - Removed schedule tag checking (manual execution doesn't need schedule conditions)
-   * - Clear error handling per resource
-   * - Type-safe result aggregation
-   *
+   * 
    * @param action - Operation to perform ("start", "stop", "status")
    * @returns Orchestration result summary
    */

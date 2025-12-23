@@ -11,11 +11,16 @@ import {
   StopDBInstanceCommand,
   waitUntilDBInstanceAvailable,
   type DBInstance,
-} from '@aws-sdk/client-rds';
-import type { Logger } from 'pino';
-import type { DiscoveredResource } from '@/types';
-import { setupLogger } from '@utils/logger';
-import { getResourceDefaults, type Config, type HandlerResult, type ResourceHandler } from '@handlers/base';
+} from "@aws-sdk/client-rds";
+import type { Logger } from "pino";
+import type {
+  DiscoveredResource,
+  Config,
+  HandlerResult,
+  ResourceHandler,
+} from "@/types";
+import { setupLogger } from "@utils/logger";
+import { getResourceDefaults } from "@handlers/base";
 
 /**
  * Handler for AWS RDS DB Instance resources.
@@ -29,17 +34,14 @@ export class RDSInstanceHandler implements ResourceHandler {
   private dbInstanceIdentifier: string;
   private logger: Logger;
 
-  constructor(
-    private resource: DiscoveredResource,
-    private config: Config
-  ) {
+  constructor(private resource: DiscoveredResource, private config: Config) {
     this.logger = setupLogger(`lights-out:handler.${resource.resourceType}`);
 
     // Extract region from ARN (format: arn:aws:rds:REGION:account:db:instance-id)
     // Falls back to AWS_DEFAULT_REGION environment variable if not in ARN
     let region: string | undefined;
-    if (resource.arn?.startsWith('arn:aws:')) {
-      const arnParts = resource.arn.split(':');
+    if (resource.arn?.startsWith("arn:aws:")) {
+      const arnParts = resource.arn.split(":");
       if (arnParts.length >= 4) {
         region = arnParts[3];
       }
@@ -51,8 +53,8 @@ export class RDSInstanceHandler implements ResourceHandler {
     // Extract DB instance identifier from ARN or resource_id
     // ARN format: arn:aws:rds:region:account:db:instance-id
     // resource_id can be either the full ARN or just the instance ID
-    if (resource.arn?.includes(':db:')) {
-      this.dbInstanceIdentifier = resource.arn.split(':db:')[1];
+    if (resource.arn?.includes(":db:")) {
+      this.dbInstanceIdentifier = resource.arn.split(":db:")[1];
     } else {
       this.dbInstanceIdentifier = resource.resourceId;
     }
@@ -78,20 +80,18 @@ export class RDSInstanceHandler implements ResourceHandler {
       );
 
       if (!response.DBInstances || response.DBInstances.length === 0) {
-        throw new Error(
-          `DB Instance ${this.dbInstanceIdentifier} not found`
-        );
+        throw new Error(`DB Instance ${this.dbInstanceIdentifier} not found`);
       }
 
       const instance: DBInstance = response.DBInstances[0];
-      const status = instance.DBInstanceStatus ?? 'unknown';
+      const status = instance.DBInstanceStatus ?? "unknown";
 
       return {
         status,
-        is_stopped: status === 'stopped',
-        engine: instance.Engine ?? 'unknown',
-        engine_version: instance.EngineVersion ?? 'unknown',
-        instance_class: instance.DBInstanceClass ?? 'unknown',
+        is_stopped: status === "stopped",
+        engine: instance.Engine ?? "unknown",
+        engine_version: instance.EngineVersion ?? "unknown",
+        instance_class: instance.DBInstanceClass ?? "unknown",
       };
     } catch (error) {
       this.logger.error(
@@ -123,13 +123,13 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           current_status: currentStatus.status,
         },
-        'Attempting to stop DB instance'
+        "Attempting to stop DB instance"
       );
 
       // 2. Idempotent check - already stopped or stopping
       if (
-        currentStatus.status === 'stopped' ||
-        currentStatus.status === 'stopping'
+        currentStatus.status === "stopped" ||
+        currentStatus.status === "stopping"
       ) {
         this.logger.info(
           {
@@ -140,7 +140,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         );
         return {
           success: true,
-          action: 'stop',
+          action: "stop",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
           message: `DB instance already ${currentStatus.status}`,
@@ -149,7 +149,7 @@ export class RDSInstanceHandler implements ResourceHandler {
       }
 
       // 3. Check if instance can be stopped (must be 'available')
-      if (currentStatus.status !== 'available') {
+      if (currentStatus.status !== "available") {
         const errorMessage = `Cannot stop DB instance in status: ${currentStatus.status}. Instance must be 'available' to be stopped.`;
         this.logger.warn(
           {
@@ -160,7 +160,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         );
         return {
           success: false,
-          action: 'stop',
+          action: "stop",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
           message: errorMessage,
@@ -179,11 +179,14 @@ export class RDSInstanceHandler implements ResourceHandler {
         {
           db_instance: this.dbInstanceIdentifier,
         },
-        'Issued stop command for DB instance'
+        "Issued stop command for DB instance"
       );
 
       // 5. Wait for stopped if configured
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
+      const defaults = getResourceDefaults(
+        this.config,
+        this.resource.resourceType
+      );
       if (defaults.wait_for_stable) {
         const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
         this.logger.info(
@@ -198,7 +201,7 @@ export class RDSInstanceHandler implements ResourceHandler {
 
       return {
         success: true,
-        action: 'stop',
+        action: "stop",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
         message: `DB instance stopped (was ${currentStatus.status})`,
@@ -210,14 +213,14 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           error,
         },
-        'Failed to stop DB instance'
+        "Failed to stop DB instance"
       );
       return {
         success: false,
-        action: 'stop',
+        action: "stop",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: 'Stop operation failed',
+        message: "Stop operation failed",
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -241,13 +244,13 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           current_status: currentStatus.status,
         },
-        'Attempting to start DB instance'
+        "Attempting to start DB instance"
       );
 
       // 2. Idempotent check - already available or starting
       if (
-        currentStatus.status === 'available' ||
-        currentStatus.status === 'starting'
+        currentStatus.status === "available" ||
+        currentStatus.status === "starting"
       ) {
         this.logger.info(
           {
@@ -258,7 +261,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         );
         return {
           success: true,
-          action: 'start',
+          action: "start",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
           message: `DB instance already ${currentStatus.status}`,
@@ -267,7 +270,7 @@ export class RDSInstanceHandler implements ResourceHandler {
       }
 
       // 3. Check if instance can be started (must be 'stopped')
-      if (currentStatus.status !== 'stopped') {
+      if (currentStatus.status !== "stopped") {
         const errorMessage = `Cannot start DB instance in status: ${currentStatus.status}. Instance must be 'stopped' to be started.`;
         this.logger.warn(
           {
@@ -278,7 +281,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         );
         return {
           success: false,
-          action: 'start',
+          action: "start",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
           message: errorMessage,
@@ -297,11 +300,14 @@ export class RDSInstanceHandler implements ResourceHandler {
         {
           db_instance: this.dbInstanceIdentifier,
         },
-        'Issued start command for DB instance'
+        "Issued start command for DB instance"
       );
 
       // 5. Wait for available if configured
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
+      const defaults = getResourceDefaults(
+        this.config,
+        this.resource.resourceType
+      );
       if (defaults.wait_for_stable) {
         const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
         this.logger.info(
@@ -316,7 +322,7 @@ export class RDSInstanceHandler implements ResourceHandler {
 
       return {
         success: true,
-        action: 'start',
+        action: "start",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
         message: `DB instance started (was ${currentStatus.status})`,
@@ -328,14 +334,14 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           error,
         },
-        'Failed to start DB instance'
+        "Failed to start DB instance"
       );
       return {
         success: false,
-        action: 'start',
+        action: "start",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: 'Start operation failed',
+        message: "Start operation failed",
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -354,7 +360,7 @@ export class RDSInstanceHandler implements ResourceHandler {
     try {
       const status = await this.getStatus();
       const isReady =
-        status.status === 'available' || status.status === 'stopped';
+        status.status === "available" || status.status === "stopped";
 
       this.logger.debug(
         {
@@ -372,7 +378,7 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           error,
         },
-        'Failed to check if DB instance is ready'
+        "Failed to check if DB instance is ready"
       );
       return false;
     }
@@ -392,7 +398,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         db_instance: this.dbInstanceIdentifier,
         timeout,
       },
-      'Starting waiter for DB instance availability'
+      "Starting waiter for DB instance availability"
     );
 
     await waitUntilDBInstanceAvailable(
@@ -411,7 +417,7 @@ export class RDSInstanceHandler implements ResourceHandler {
       {
         db_instance: this.dbInstanceIdentifier,
       },
-      'DB instance reached available state'
+      "DB instance reached available state"
     );
   }
 
@@ -429,7 +435,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         db_instance: this.dbInstanceIdentifier,
         timeout,
       },
-      'Starting waiter for DB instance to stop'
+      "Starting waiter for DB instance to stop"
     );
 
     const startTime = Date.now();
@@ -437,18 +443,18 @@ export class RDSInstanceHandler implements ResourceHandler {
 
     while (Date.now() - startTime < timeout * 1000) {
       const status = await this.getStatus();
-      
-      if (status.status === 'stopped') {
+
+      if (status.status === "stopped") {
         this.logger.info(
           {
             db_instance: this.dbInstanceIdentifier,
           },
-          'DB instance reached stopped state'
+          "DB instance reached stopped state"
         );
         return;
       }
 
-      if (status.status !== 'stopping' && status.status !== 'stopped') {
+      if (status.status !== "stopping" && status.status !== "stopped") {
         throw new Error(
           `Unexpected DB instance status during stop: ${status.status}`
         );
@@ -459,10 +465,10 @@ export class RDSInstanceHandler implements ResourceHandler {
           db_instance: this.dbInstanceIdentifier,
           status: status.status,
         },
-        'DB instance still stopping, continuing to wait'
+        "DB instance still stopping, continuing to wait"
       );
 
-      await new Promise(resolve => setTimeout(resolve, pollingInterval));
+      await new Promise((resolve) => setTimeout(resolve, pollingInterval));
     }
 
     throw new Error(

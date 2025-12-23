@@ -10,11 +10,16 @@ import {
   UpdateServiceCommand,
   waitUntilServicesStable,
   type Service,
-} from '@aws-sdk/client-ecs';
-import type { Logger } from 'pino';
-import type { DiscoveredResource } from '@/types';
-import { setupLogger } from '@utils/logger';
-import { getResourceDefaults, type Config, type HandlerResult, type ResourceHandler } from '@handlers/base';
+} from "@aws-sdk/client-ecs";
+import type { Logger } from "pino";
+import type {
+  DiscoveredResource,
+  Config,
+  HandlerResult,
+  ResourceHandler,
+} from "@/types";
+import { setupLogger } from "@utils/logger";
+import { getResourceDefaults } from "@handlers/base";
 
 /**
  * Handler for AWS ECS Service resources.
@@ -29,17 +34,14 @@ export class ECSServiceHandler implements ResourceHandler {
   private serviceName: string;
   private logger: Logger;
 
-  constructor(
-    private resource: DiscoveredResource,
-    private config: Config
-  ) {
+  constructor(private resource: DiscoveredResource, private config: Config) {
     this.logger = setupLogger(`lights-out:handler.${resource.resourceType}`);
 
     // Extract region from ARN (format: arn:aws:ecs:REGION:account:...)
     // Falls back to AWS_DEFAULT_REGION environment variable if not in ARN
     let region: string | undefined;
-    if (resource.arn?.startsWith('arn:aws:')) {
-      const arnParts = resource.arn.split(':');
+    if (resource.arn?.startsWith("arn:aws:")) {
+      const arnParts = resource.arn.split(":");
       if (arnParts.length >= 4) {
         region = arnParts[3];
       }
@@ -49,12 +51,12 @@ export class ECSServiceHandler implements ResourceHandler {
     this.ecsClient = new ECSClient({ region });
 
     // Extract cluster and service names from resource
-    this.clusterName = (resource.metadata.cluster_name as string) ?? 'default';
+    this.clusterName = (resource.metadata.cluster_name as string) ?? "default";
 
     // Extract service name from resource_id
     // Format can be "cluster/service" or just "service"
-    if (resource.resourceId.includes('/')) {
-      this.serviceName = resource.resourceId.split('/').pop()!;
+    if (resource.resourceId.includes("/")) {
+      this.serviceName = resource.resourceId.split("/").pop()!;
     } else {
       this.serviceName = resource.resourceId;
     }
@@ -89,7 +91,7 @@ export class ECSServiceHandler implements ResourceHandler {
       const service: Service = response.services[0];
       const desiredCount = service.desiredCount ?? 0;
       const runningCount = service.runningCount ?? 0;
-      const status = service.status ?? 'UNKNOWN';
+      const status = service.status ?? "UNKNOWN";
 
       return {
         desired_count: desiredCount,
@@ -129,7 +131,7 @@ export class ECSServiceHandler implements ResourceHandler {
           service: this.serviceName,
           current_desired_count: currentStatus.desired_count,
         },
-        'Attempting to stop service'
+        "Attempting to stop service"
       );
 
       // 2. Idempotent check - already stopped
@@ -139,14 +141,14 @@ export class ECSServiceHandler implements ResourceHandler {
             cluster: this.clusterName,
             service: this.serviceName,
           },
-          'Service already stopped'
+          "Service already stopped"
         );
         return {
           success: true,
-          action: 'stop',
+          action: "stop",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
-          message: 'Service already stopped',
+          message: "Service already stopped",
           previousState: currentStatus,
         };
       }
@@ -166,11 +168,14 @@ export class ECSServiceHandler implements ResourceHandler {
           service: this.serviceName,
           previous_count: currentStatus.desired_count,
         },
-        'Updated service desiredCount to 0'
+        "Updated service desiredCount to 0"
       );
 
       // 4. Wait for stable if configured
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
+      const defaults = getResourceDefaults(
+        this.config,
+        this.resource.resourceType
+      );
       if (defaults.wait_for_stable) {
         const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
         this.logger.info(
@@ -186,7 +191,7 @@ export class ECSServiceHandler implements ResourceHandler {
 
       return {
         success: true,
-        action: 'stop',
+        action: "stop",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
         message: `Service scaled to 0 (was ${currentStatus.desired_count})`,
@@ -199,14 +204,14 @@ export class ECSServiceHandler implements ResourceHandler {
           service: this.serviceName,
           error,
         },
-        'Failed to stop service'
+        "Failed to stop service"
       );
       return {
         success: false,
-        action: 'stop',
+        action: "stop",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: 'Stop operation failed',
+        message: "Stop operation failed",
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -227,7 +232,10 @@ export class ECSServiceHandler implements ResourceHandler {
       const currentStatus = await this.getStatus();
 
       // 2. Get target desired count from config
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
+      const defaults = getResourceDefaults(
+        this.config,
+        this.resource.resourceType
+      );
       const targetCount = (defaults.default_desired_count as number) ?? 1;
 
       this.logger.info(
@@ -237,7 +245,7 @@ export class ECSServiceHandler implements ResourceHandler {
           current_desired_count: currentStatus.desired_count,
           target_count: targetCount,
         },
-        'Attempting to start service'
+        "Attempting to start service"
       );
 
       // 3. Idempotent check - already at target count
@@ -251,7 +259,7 @@ export class ECSServiceHandler implements ResourceHandler {
         );
         return {
           success: true,
-          action: 'start',
+          action: "start",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
           message: `Service already at desired count ${targetCount}`,
@@ -294,7 +302,7 @@ export class ECSServiceHandler implements ResourceHandler {
 
       return {
         success: true,
-        action: 'start',
+        action: "start",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
         message: `Service scaled to ${targetCount}`,
@@ -307,14 +315,14 @@ export class ECSServiceHandler implements ResourceHandler {
           service: this.serviceName,
           error,
         },
-        'Failed to start service'
+        "Failed to start service"
       );
       return {
         success: false,
-        action: 'start',
+        action: "start",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: 'Start operation failed',
+        message: "Start operation failed",
         error: error instanceof Error ? error.message : String(error),
       };
     }
@@ -352,7 +360,7 @@ export class ECSServiceHandler implements ResourceHandler {
           service: this.serviceName,
           error,
         },
-        'Failed to check if service is ready'
+        "Failed to check if service is ready"
       );
       return false;
     }
@@ -379,7 +387,7 @@ export class ECSServiceHandler implements ResourceHandler {
         timeout,
         max_attempts: maxAttempts,
       },
-      'Starting waiter for service stability'
+      "Starting waiter for service stability"
     );
 
     await waitUntilServicesStable(
@@ -400,7 +408,7 @@ export class ECSServiceHandler implements ResourceHandler {
         cluster: this.clusterName,
         service: this.serviceName,
       },
-      'Service reached stable state'
+      "Service reached stable state"
     );
   }
 }

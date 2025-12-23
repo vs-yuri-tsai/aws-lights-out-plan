@@ -23,7 +23,7 @@ const { mockLoadConfigFromSsm, mockOrchestratorClass, mockDiscoverResourcesFn, m
   const mockRunFn = vi.fn();
 
   // Mock the Orchestrator class constructor
-  const MockOrchestratorClass = vi.fn(function (this: any, config: Config) {
+  const MockOrchestratorClass = vi.fn(function (this: any, _config: Config) {
     this.discoverResources = mockDiscoverResourcesFn;
     this.run = mockRunFn;
   });

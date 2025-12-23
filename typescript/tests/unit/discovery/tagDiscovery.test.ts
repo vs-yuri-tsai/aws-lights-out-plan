@@ -154,8 +154,8 @@ describe("TagDiscovery", () => {
       expect(taggingMock.calls()).toHaveLength(2);
 
       // Check that the second call used the token from the first
-      const firstCall = taggingMock.call(0).args[0].input;
-      const secondCall = taggingMock.call(1).args[0].input;
+      const firstCall = taggingMock.call(0).args[0].input as any;
+      const secondCall = taggingMock.call(1).args[0].input as any;
 
       expect(firstCall).toMatchObject({
         TagFilters: [{ Key: "k", Values: ["v"] }],
@@ -215,7 +215,7 @@ describe("TagDiscovery", () => {
       ["unsupported-arn", "unknown", "unsupported-arn", {}],
     ])(
       "should parse ARN correctly: %s",
-      async (arn, resourceType, expectedId, expectedMetadata) => {
+      async (arn, _resourceType, expectedId, expectedMetadata) => {
         // Use a mock response to trigger the parsing logic
         taggingMock.on(GetResourcesCommand).resolves({
           ResourceTagMappingList: [

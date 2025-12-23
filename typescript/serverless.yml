@@ -24,7 +24,7 @@ provider:
 
 functions:
   lights-out:
-    handler: dist/index.handler
+    handler: dist/index.main
     runtime: nodejs20.x
     timeout: 300
     memorySize: 512

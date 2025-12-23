@@ -10,33 +10,39 @@ import type {
   Config,
   DiscoveredResource,
   HandlerResult,
+  ResourceHandler,
 } from "@/types";
-import type { ResourceHandler } from "@handlers/base";
 
 // ============================================================================
 // HOISTED MOCKS - Must be defined before imports
 // ============================================================================
 
 // Create mock functions that will be hoisted
-const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock } = vi.hoisted(() => {
-  const mockDiscoverFn = vi.fn();
-  const mockGetHandlerFn = vi.fn();
+const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock } = vi.hoisted(
+  () => {
+    const mockDiscoverFn = vi.fn();
+    const mockGetHandlerFn = vi.fn();
 
-  // Mock the TagDiscovery class constructor using vi.fn() as the constructor
-  const MockTagDiscoveryConstructor = vi.fn(function (this: any, tagFilters: Record<string, string>, resourceTypes: string[]) {
-    // Assign the hoisted mock function to the 'discover' method of the instance
-    this.discover = mockDiscoverFn;
-    // You can also store constructor arguments if needed for assertions on the instance itself
-    // this.tagFilters = tagFilters;
-    // this.resourceTypes = resourceTypes;
-  });
+    // Mock the TagDiscovery class constructor using vi.fn() as the constructor
+    const MockTagDiscoveryConstructor = vi.fn(function (
+      this: any,
+      _tagFilters: Record<string, string>,
+      _resourceTypes: string[]
+    ) {
+      // Assign the hoisted mock function to the 'discover' method of the instance
+      this.discover = mockDiscoverFn;
+      // You can also store constructor arguments if needed for assertions on the instance itself
+      // this.tagFilters = tagFilters;
+      // this.resourceTypes = resourceTypes;
+    });
 
-  return {
-    mockDiscoverFn,
-    mockGetHandlerFn,
-    TagDiscoveryMock: MockTagDiscoveryConstructor, // Export the vi.fn() as the constructor
-  };
-});
+    return {
+      mockDiscoverFn,
+      mockGetHandlerFn,
+      TagDiscoveryMock: MockTagDiscoveryConstructor, // Export the vi.fn() as the constructor
+    };
+  }
+);
 
 // Mock the modules using hoisted factories
 vi.mock("@discovery/tagDiscovery", () => ({

@@ -4,10 +4,9 @@
  * Maps resource types to their handler classes.
  */
 
-import type { DiscoveredResource } from '@/types';
-import type { ResourceHandler, Config } from '@handlers/base';
-import { ECSServiceHandler } from '@handlers/ecsService';
-import { RDSInstanceHandler } from '@handlers/rdsInstance';
+import type { DiscoveredResource, ResourceHandler, Config } from "@/types";
+import { ECSServiceHandler } from "@handlers/ecsService";
+import { RDSInstanceHandler } from "@handlers/rdsInstance";
 
 /**
  * Get a handler for a specific resource type.
@@ -23,9 +22,9 @@ export function getHandler(
   config: Config
 ): ResourceHandler | null {
   switch (resourceType) {
-    case 'ecs-service':
+    case "ecs-service":
       return new ECSServiceHandler(resource, config);
-    case 'rds-instance':
+    case "rds-instance":
       return new RDSInstanceHandler(resource, config);
     default:
       return null;

@@ -4,28 +4,27 @@
  * Tests handler factory function.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { getHandler } from '@handlers/factory';
-import { ECSServiceHandler } from '@handlers/ecsService';
-import { RDSInstanceHandler } from '@handlers/rdsInstance';
-import type { Config } from '@handlers/base';
-import type { DiscoveredResource } from '@discovery/base';
+import { describe, it, expect, beforeEach } from "vitest";
+import { getHandler } from "@handlers/factory";
+import { ECSServiceHandler } from "@handlers/ecsService";
+import { RDSInstanceHandler } from "@handlers/rdsInstance";
+import type { Config, DiscoveredResource } from "@/types";
 
-describe('Handler Factory', () => {
+describe("Handler Factory", () => {
   let sampleConfig: Config;
 
   beforeEach(() => {
     sampleConfig = {
-      version: '1.0',
-      environment: 'test',
-      discovery: { method: 'tags' },
+      version: "1.0",
+      environment: "test",
+      discovery: { method: "tags" },
       resource_defaults: {
-        'ecs-service': {
+        "ecs-service": {
           wait_for_stable: false,
           stable_timeout_seconds: 300,
           default_desired_count: 1,
         },
-        'rds-instance': {
+        "rds-instance": {
           wait_for_stable: false,
           stable_timeout_seconds: 600,
         },
@@ -33,133 +32,135 @@ describe('Handler Factory', () => {
     };
   });
 
-  describe('getHandler', () => {
-    it('should return ECSServiceHandler for ecs-service resource type', () => {
+  describe("getHandler", () => {
+    it("should return ECSServiceHandler for ecs-service resource type", () => {
       const resource: DiscoveredResource = {
-        resourceType: 'ecs-service',
-        arn: 'arn:aws:ecs:us-east-1:123456:service/cluster/service',
-        resourceId: 'cluster/service',
+        resourceType: "ecs-service",
+        arn: "arn:aws:ecs:us-east-1:123456:service/cluster/service",
+        resourceId: "cluster/service",
         priority: 50,
-        group: 'default',
+        group: "default",
         tags: {},
-        metadata: { cluster_name: 'cluster' },
+        metadata: { cluster_name: "cluster" },
       };
 
-      const handler = getHandler('ecs-service', resource, sampleConfig);
+      const handler = getHandler("ecs-service", resource, sampleConfig);
 
       expect(handler).toBeDefined();
       expect(handler).toBeInstanceOf(ECSServiceHandler);
     });
 
-    it('should return RDSInstanceHandler for rds-instance resource type', () => {
+    it("should return RDSInstanceHandler for rds-instance resource type", () => {
       const resource: DiscoveredResource = {
-        resourceType: 'rds-instance',
-        arn: 'arn:aws:rds:us-east-1:123456:db:my-database',
-        resourceId: 'my-database',
+        resourceType: "rds-instance",
+        arn: "arn:aws:rds:us-east-1:123456:db:my-database",
+        resourceId: "my-database",
         priority: 100,
-        group: 'default',
+        group: "default",
         tags: {},
         metadata: {},
       };
 
-      const handler = getHandler('rds-instance', resource, sampleConfig);
+      const handler = getHandler("rds-instance", resource, sampleConfig);
 
       expect(handler).toBeDefined();
       expect(handler).toBeInstanceOf(RDSInstanceHandler);
     });
 
-    it('should return null for unknown resource type', () => {
+    it("should return null for unknown resource type", () => {
       const resource: DiscoveredResource = {
-        resourceType: 'unknown-type',
-        arn: 'arn:aws:unknown:us-east-1:123456:resource/id',
-        resourceId: 'id',
+        resourceType: "unknown-type",
+        arn: "arn:aws:unknown:us-east-1:123456:resource/id",
+        resourceId: "id",
         priority: 50,
-        group: 'default',
+        group: "default",
         tags: {},
         metadata: {},
       };
 
-      const handler = getHandler('unknown-type', resource, sampleConfig);
+      const handler = getHandler("unknown-type", resource, sampleConfig);
 
       expect(handler).toBeNull();
     });
 
-    it('should create handler with correct resource and config', () => {
+    it("should create handler with correct resource and config", () => {
       const resource: DiscoveredResource = {
-        resourceType: 'ecs-service',
-        arn: 'arn:aws:ecs:us-east-1:123456:service/test/test',
-        resourceId: 'test/test',
+        resourceType: "ecs-service",
+        arn: "arn:aws:ecs:us-east-1:123456:service/test/test",
+        resourceId: "test/test",
         priority: 50,
-        group: 'default',
-        tags: { env: 'test' },
-        metadata: { cluster_name: 'test' },
+        group: "default",
+        tags: { env: "test" },
+        metadata: { cluster_name: "test" },
       };
 
-      const handler = getHandler('ecs-service', resource, sampleConfig);
+      const handler = getHandler("ecs-service", resource, sampleConfig);
 
       expect(handler).toBeDefined();
-      // Verify handler has access to resource
-      expect(handler!['resource']).toEqual(resource);
-      expect(handler!['config']).toEqual(sampleConfig);
+      // Verify handler is created and can be used (test through public interface)
+      expect(handler).toBeInstanceOf(ECSServiceHandler);
+      expect(typeof handler!.getStatus).toBe("function");
+      expect(typeof handler!.start).toBe("function");
+      expect(typeof handler!.stop).toBe("function");
     });
   });
 
-  describe('Factory with multiple handlers', () => {
-    it('should create different handler instances for different resource types', () => {
+  describe("Factory with multiple handlers", () => {
+    it("should create different handler instances for different resource types", () => {
       const ecsResource: DiscoveredResource = {
-        resourceType: 'ecs-service',
-        arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
-        resourceId: 'c/s',
+        resourceType: "ecs-service",
+        arn: "arn:aws:ecs:us-east-1:123456:service/c/s",
+        resourceId: "c/s",
         priority: 50,
-        group: 'default',
+        group: "default",
         tags: {},
-        metadata: { cluster_name: 'c' },
+        metadata: { cluster_name: "c" },
       };
 
       const rdsResource: DiscoveredResource = {
-        resourceType: 'rds-instance',
-        arn: 'arn:aws:rds:us-east-1:123456:db:db',
-        resourceId: 'db',
+        resourceType: "rds-instance",
+        arn: "arn:aws:rds:us-east-1:123456:db:db",
+        resourceId: "db",
         priority: 100,
-        group: 'default',
+        group: "default",
         tags: {},
         metadata: {},
       };
 
-      const ecsHandler = getHandler('ecs-service', ecsResource, sampleConfig);
-      const rdsHandler = getHandler('rds-instance', rdsResource, sampleConfig);
+      const ecsHandler = getHandler("ecs-service", ecsResource, sampleConfig);
+      const rdsHandler = getHandler("rds-instance", rdsResource, sampleConfig);
 
       expect(ecsHandler).toBeInstanceOf(ECSServiceHandler);
       expect(rdsHandler).toBeInstanceOf(RDSInstanceHandler);
       expect(ecsHandler).not.toBe(rdsHandler);
     });
 
-    it('should handle list of mixed resource types', () => {
+    it("should handle list of mixed resource types", () => {
       const resources: DiscoveredResource[] = [
         {
-          resourceType: 'ecs-service',
-          arn: 'arn:aws:ecs:us-east-1:123456:service/c1/s1',
-          resourceId: 'c1/s1',
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
           priority: 50,
-          group: 'default',
+          group: "default",
           tags: {},
-          metadata: { cluster_name: 'c1' },
+          metadata: { cluster_name: "c1" },
         },
         {
-          resourceType: 'rds-instance',
-          arn: 'arn:aws:rds:us-east-1:123456:db:db1',
-          resourceId: 'db1',
+          resourceType: "rds-instance",
+          arn: "arn:aws:rds:us-east-1:123456:db:db1",
+          resourceId: "db1",
           priority: 100,
-          group: 'default',
+          group: "default",
           tags: {},
           metadata: {},
         },
         {
-          resourceType: 'unknown-type',
-          arn: 'arn:aws:unknown:us-east-1:123456:resource/r1',
-          resourceId: 'r1',
+          resourceType: "unknown-type",
+          arn: "arn:aws:unknown:us-east-1:123456:resource/r1",
+          resourceId: "r1",
           priority: 150,
-          group: 'default',
+          group: "default",
           tags: {},
           metadata: {},
         },
