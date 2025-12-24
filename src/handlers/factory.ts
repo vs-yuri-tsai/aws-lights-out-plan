@@ -24,7 +24,7 @@ export function getHandler(
   switch (resourceType) {
     case "ecs-service":
       return new ECSServiceHandler(resource, config);
-    case "rds-instance":
+    case "rds-db":
       return new RDSInstanceHandler(resource, config);
     default:
       return null;
