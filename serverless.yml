@@ -4,13 +4,15 @@ provider:
   name: aws
   region: ap-southeast-1
   stage: ${opt:stage, 'sss-lab'}  # 對應 AWS 帳號名稱
+  runtime: nodejs20.x  # Default runtime for all functions
 
   iam:
     role:
       statements:
         - Effect: Allow
           Action: [ssm:GetParameter]
-          Resource: arn:aws:ssm:${aws:region}:${aws:accountId}:parameter/lights-out/*
+          Resource:
+            Fn::Sub: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lights-out/*"
         - Effect: Allow
           Action: [tag:GetResources]
           Resource: "*"

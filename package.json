@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "description": "自動在非工作時間關閉 AWS 開發環境資源（ECS Service 等）以節省成本",
   "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
-    "deploy": "serverless deploy --stage poc",
-    "deploy:prod": "serverless deploy --stage prod",
-    "perf-test": "bash scripts/performance-test.sh",
-    "lint": "eslint src --ext .ts"
+    "deploy": "serverless deploy"
   },
   "keywords": [
     "aws",
@@ -40,7 +40,7 @@
     "@vitest/coverage-v8": "^4.0.16",
     "aws-sdk-client-mock": "^4.1.0",
     "esbuild": "^0.27.2",
-    "serverless": "^4.29.0",
+    "serverless": "^3.39.0",
     "serverless-esbuild": "^1.57.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
