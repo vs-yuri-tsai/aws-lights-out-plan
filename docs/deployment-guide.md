@@ -305,8 +305,9 @@ pnpm sls remove --stage workshop
 
 ---
 
-## 附錄：Python 手動部署（僅供參考）
+## 附錄
 
-如需部署 Python 版本，請參考原始的手動部署流程，使用 Console 上傳 ZIP 檔案。
+### 版本歷史
 
-詳見：`docs/deployment-guide-python.md`（需單獨建立）
+- **v2.0 (2025-12-24)**: TypeScript 實作，統一使用 Serverless Framework 部署
+- **v1.0 (2025-12-17)**: Python 原型（已移除）

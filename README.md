@@ -1,6 +1,6 @@
 # AWS Lights Out Plan
 
-> 自動在非工作時間關閉 AWS 開發環境資源（ECS Service、NAT Gateway 等）以節省成本。支援 Tag-based 資源發現，為未來 MCP AI Agent 整合做準備。
+> 自動在非工作時間關閉 AWS 開發環境資源（ECS Service、RDS Instance 等）以節省成本。支援 Tag-based 資源發現，透過 Serverless Framework 部署至多 Region。
 
 ## 📋 專案概述
 
@@ -13,9 +13,9 @@
 - ✅ Tag-based 資源自動發現
 - ✅ 支援 ECS Service 與 RDS Instance 管理
 - ✅ 資源優先級控制（避免依賴問題）
-- ✅ TypeScript + AWS SDK v3 實作（現代化架構）
-- ✅ Serverless Framework 部署
-- 🚧 未來支援更多資源類型
+- ✅ TypeScript + AWS SDK v3 實作
+- ✅ Serverless Framework 多 Region 部署
+- 🚧 未來支援更多資源類型（NAT Gateway、Lambda 等）
 - 🚧 未來支援 MCP AI Agent 手動控制
 
 ---
@@ -24,27 +24,21 @@
 
 | 類別 | 技術 |
 |------|------|
-| **Runtime** | TypeScript (Node.js 20) + AWS SDK v3 |
-| **Deployment** | AWS Lambda (Serverless Framework) |
+| **Runtime** | TypeScript 5.9 + Node.js 20.x |
+| **Framework** | Serverless Framework + serverless-esbuild |
 | **Trigger** | EventBridge (Cron) |
 | **Config** | SSM Parameter Store (YAML) |
 | **Discovery** | Resource Groups Tagging API |
-| **Logging** | 結構化 JSON (CloudWatch Logs) |
-| **Build** | esbuild (ESM bundling) |
+| **Testing** | Vitest + aws-sdk-client-mock |
+| **Logging** | Pino (JSON structured logs) |
+| **Validation** | Zod |
 
 ### 開發工具
 
-**TypeScript (主要實作)**:
-- **Testing:** Vitest + aws-sdk-client-mock
 - **Type Checking:** TypeScript strict mode
-- **Bundling:** esbuild + Serverless Framework
-- **Testing:** 307 個測試檔案
-
-**Python (原型實作)**:
-- **Testing:** pytest + moto (AWS mock)
-- **Type Checking:** mypy
-- **Code Quality:** black, ruff
-- **測試:** 11 個測試檔案，100+ 測試案例
+- **Bundling:** esbuild (ESM bundling)
+- **Testing:** Vitest with coverage
+- **Linting:** ESLint
 
 ---
 
@@ -57,12 +51,12 @@
 - **AWS CLI:** 已配置 (用於部署)
 - **權限:** 能存取目標 AWS 帳號
 
-### 本機開發環境設置（TypeScript）
+### 本機開發環境設置
 
 ```bash
 # 1. Clone 專案
 git clone https://github.com/ViewSonic/aws-lights-out-plan.git
-cd aws-lights-out-plan/typescript
+cd aws-lights-out-plan
 
 # 2. 安裝相依套件
 pnpm install
@@ -72,18 +66,16 @@ node --version  # 應顯示 v20.x.x
 pnpm --version
 pnpm tsc --version
 
-# 4. 建置專案
-pnpm build
+# 4. 型別檢查
+pnpm type-check
 
 # 5. 執行測試
 pnpm test
 ```
 
-### 執行測試（TypeScript）
+### 執行測試
 
 ```bash
-cd typescript
-
 # 執行所有測試
 pnpm test
 
@@ -100,77 +92,49 @@ pnpm type-check
 pnpm lint
 ```
 
-### Python 原型開發（選用）
-
-```bash
-# 1. 建立 Python 虛擬環境（Python 3.11）
-python3.11 -m venv .venv
-
-# 2. 啟動虛擬環境
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
-
-# 3. 安裝開發依賴
-pip install --upgrade pip
-pip install -r requirements-dev.txt
-
-# 4. 執行測試
-pytest
-
-# 5. 型別檢查
-mypy src/lambda_function
-```
-
 ---
 
 ## 📁 專案結構
 
 ```
 aws-lights-out-plan/
-├── typescript/              # TypeScript 主要實作（生產使用）
-│   ├── src/
-│   │   ├── index.ts         # Lambda handler 入口
-│   │   ├── types.ts         # 共用型別定義
-│   │   ├── core/
-│   │   │   ├── config.ts    # SSM 配置載入
-│   │   │   └── orchestrator.ts  # 執行協調
-│   │   ├── discovery/
-│   │   │   └── tagDiscovery.ts  # Tag-based 資源發現
-│   │   ├── handlers/
-│   │   │   ├── base.ts      # Handler 介面
-│   │   │   ├── factory.ts   # Factory Pattern
-│   │   │   ├── ecsService.ts    # ECS Service Handler
-│   │   │   └── rdsInstance.ts   # RDS Instance Handler
-│   │   └── utils/
-│   │       └── logger.ts    # 結構化 logging
-│   ├── tests/               # 307 個測試檔案
-│   ├── serverless.yml       # Serverless Framework 設定
-│   ├── tsconfig.json        # TypeScript 配置（strict mode）
-│   └── package.json         # 相依套件
+├── src/
+│   ├── index.ts                # Lambda handler 入口
+│   ├── types.ts                # 共用型別定義
+│   ├── core/
+│   │   ├── config.ts           # SSM 配置載入 (LRU cache)
+│   │   ├── orchestrator.ts     # 資源操作協調
+│   │   └── scheduler.ts        # 時區與假日邏輯
+│   ├── discovery/
+│   │   └── tag-discovery.ts    # Tag-based 資源發現
+│   ├── handlers/
+│   │   ├── base.ts             # ResourceHandler 介面
+│   │   ├── ecs-service.ts      # ECS Service Handler
+│   │   └── rds-instance.ts     # RDS Instance Handler
+│   └── utils/
+│       └── logger.ts           # Pino 結構化 logging
 │
-├── src/lambda_function/     # Python 原型實作（參考）
-│   ├── app.py               # Lambda 進入點
-│   ├── core/                # 核心業務邏輯
-│   ├── discovery/           # 資源發現模組
-│   ├── handlers/            # 資源處理器
-│   └── utils/               # 工具模組
-│
-├── tests/                   # Python 測試（11 個測試檔案）
+├── tests/                      # Vitest 測試
+├── config/                     # SSM 配置範本
 ├── docs/
-│   ├── deployment-guide.md  # 部署指南
-│   ├── ssm-operations-guide.md  # SSM 操作指南
-│   └── tagging-guide.md     # 標籤操作手冊
-├── AGENTS.md                # Agent 協作文件
-├── TASKS.md                 # 任務追蹤
-└── CLAUDE.md                # AI Agent 專案規範
+│   ├── deployment-guide.md     # 部署指南
+│   ├── ssm-operations-guide.md # SSM 操作指南
+│   └── tagging-guide.md        # 標籤操作手冊
+├── scripts/                    # Helper scripts
+├── serverless.yml              # Serverless Framework IaC
+├── tsconfig.json               # TypeScript 配置 (strict mode)
+├── vitest.config.ts            # Vitest 配置
+├── package.json                # 相依套件
+├── AGENTS.md                   # Agent 協作文件
+├── TASKS.md                    # 任務追蹤
+└── CLAUDE.md                   # AI Agent 專案規範
+```
 
 **Why this structure:**
-- `typescript/` 生產實作：使用 TypeScript + AWS SDK v3，現代化架構
-- `handlers/` 模組化：新增資源類型只需加檔案，不動既有程式碼
-- `discovery/` 抽象化：配置與程式碼分離，資源清單不寫死
-- `core/` 業務邏輯：不直接呼叫 AWS SDK，方便測試
-- `src/lambda_function/` Python 原型：完整的 Python 實作作為參考
-```
+- `handlers/` 模組化：實作 `ResourceHandler` 介面新增資源類型
+- `discovery/` 抽象化：配置與程式碼分離，資源清單動態發現
+- `core/` 業務邏輯：可注入 mock clients，方便單元測試
+- 嚴格型別系統：Zod runtime validation + TypeScript compile-time checks
 
 ---
 
@@ -180,7 +144,7 @@ aws-lights-out-plan/
 
 ```
 lights-out:managed  = true              # 是否納管
-lights-out:env      = workshop          # 環境名稱（workshop/staging）
+lights-out:env      = workshop          # 環境名稱 (workshop/dev/staging)
 lights-out:priority = 100               # 優先級（數字越小越先啟動/越後關閉）
 lights-out:schedule = default           # 排程群組（可選）
 ```
@@ -201,60 +165,67 @@ aws ecs tag-resource \
 
 ## 🔧 本地測試與部署
 
-### 模擬 Lambda 執行（TypeScript）
+### 模擬 Lambda 執行
 
 ```bash
-cd typescript
-
-# 本地測試（使用 Serverless Offline，選用）
+# 本地測試（使用 Serverless Invoke Local）
 pnpm sls invoke local -f lights-out --data '{"action":"status"}'
 
-# 建置
-pnpm build
+# 型別檢查
+pnpm type-check
 
-# 檢查打包大小
-ls -lh dist/
+# 檢查打包大小（執行 serverless package 後）
+ls -lh .serverless/
 ```
 
-### 部署至 AWS（TypeScript）
+### 部署至 AWS
 
 ```bash
-cd typescript
-
-# 部署至開發環境
-pnpm deploy:dev
-
-# 部署至 Staging
-pnpm deploy:staging
+# 部署至 POC 環境
+pnpm deploy
 
 # 部署至生產環境
 pnpm deploy:prod
 
 # 查看 Lambda 日誌
-pnpm sls logs -f lights-out --tail
+pnpm sls logs -f handler --tail --stage poc
+
+# 移除部署
+pnpm sls remove --stage poc
 ```
 
-### Python 打包（僅供參考）
+### 手動觸發 Lambda
 
 ```bash
-# 建立部署包
-cd src/lambda_function
-zip -r ../../function.zip . -x "*.pyc" "__pycache__/*" "*.md"
-cd ../..
+# 查詢資源狀態
+aws lambda invoke \
+  --function-name lights-out-poc-handler \
+  --payload '{"action":"status"}' \
+  out.json && cat out.json
 
-# 驗證打包內容
-unzip -l function.zip
+# 停止資源
+aws lambda invoke \
+  --function-name lights-out-poc-handler \
+  --payload '{"action":"stop","dryRun":true}' \
+  out.json && cat out.json
+
+# 啟動資源
+aws lambda invoke \
+  --function-name lights-out-poc-handler \
+  --payload '{"action":"start","dryRun":false}' \
+  out.json && cat out.json
 ```
 
 ---
 
 ## 📖 相關文件
 
+- **[CLAUDE.md](./CLAUDE.md)** - AI Agent 專案規範（開始此處）
 - **[AGENTS.md](./AGENTS.md)** - 多 Agent 協作規範 + 技術規格
 - **[TASKS.md](./TASKS.md)** - Milestone 與任務追蹤
-- **[CLAUDE.md](./CLAUDE.md)** - AI Agent 專案規範
 - **[docs/deployment-guide.md](./docs/deployment-guide.md)** - 部署操作手冊
 - **[docs/tagging-guide.md](./docs/tagging-guide.md)** - 資源標籤指南
+- **[docs/ssm-operations-guide.md](./docs/ssm-operations-guide.md)** - SSM 操作指南
 
 ---
 
@@ -266,13 +237,13 @@ unzip -l function.zip
 <type>(<scope>): <description>
 
 type: feat|fix|docs|refactor|test|chore
-scope: core|discovery|handlers|config|docs
+scope: core|discovery|handlers|config|infra|docs
 ```
 
 **範例:**
 ```bash
-git commit -m "feat(handlers): implement ECS service handler"
-git commit -m "test(core): add config loader unit tests"
+git commit -m "feat(handlers): implement RDS instance handler"
+git commit -m "test(core): add scheduler timezone tests"
 git commit -m "docs(deployment): update Lambda IAM requirements"
 ```
 
@@ -286,12 +257,13 @@ git commit -m "docs(deployment): update Lambda IAM requirements"
 
 ### Code Review Checklist
 
-- [ ] Type hints 完整
-- [ ] Docstring 有撰寫
+- [ ] TypeScript strict mode 通過
+- [ ] 函式有明確的返回型別
 - [ ] Error handling 正確（不中斷整體流程）
 - [ ] Dry-run 模式有支援
-- [ ] Logging 有結構化輸出
+- [ ] Logging 有結構化輸出（Pino）
 - [ ] 測試覆蓋率 ≥ 80%
+- [ ] Zod schema 有定義（runtime validation）
 
 ---
 
@@ -300,7 +272,7 @@ git commit -m "docs(deployment): update Lambda IAM requirements"
 ### 當前階段
 
 - [x] Phase 0: 專案初始化（文件規劃）
-- [x] Phase 1.1: Python 原型實作（ECS Service Handler）
+- [x] Phase 1.1: Python 原型實作（已移除）
 - [x] Phase 1.2: TypeScript 完整實作（ECS + RDS Handler）
 - [ ] Phase 1.3: AWS 環境設定與部署
 - [ ] Phase 2: 更多資源類型支援（NAT Gateway、Lambda 等）
@@ -314,8 +286,9 @@ git commit -m "docs(deployment): update Lambda IAM requirements"
 | Runtime | Node.js 20 | Lambda 最新穩定版本 | 2025-12-23 |
 | 部署方式 | Serverless Framework | 自動化部署、簡化配置 | 2025-12-23 |
 | 打包工具 | esbuild | 快速、輕量級打包 | 2025-12-23 |
+| 測試框架 | Vitest | 現代化、快速、原生 ESM 支援 | 2025-12-23 |
 | Phase 1 範圍 | ECS + RDS | 涵蓋常用資源類型 | 2025-12-23 |
-| Python 版本 | 3.11 (原型) | 完整的參考實作 | 2025-12-17 |
+| Python 移除 | 2025-12-24 | 統一使用 TypeScript | 2025-12-24 |
 
 ---
 

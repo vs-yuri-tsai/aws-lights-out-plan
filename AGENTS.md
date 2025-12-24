@@ -8,8 +8,9 @@
 
 ### Current Phase
 - [x] Phase 0: 專案初始化（文件規劃）
-- [x] Phase 1.1: Python 原型實作（完成）
+- [x] Phase 1.1: Python 原型實作（已移除）
 - [x] Phase 1.2: TypeScript 完整實作（完成）
+- [x] Phase 1.2.1: 移除 Python 實作，統一使用 TypeScript
 - [ ] Phase 1.3: AWS 環境設定與部署
 - [ ] Phase 2: 更多資源類型支援
 - [ ] Phase 3: MCP 整合
@@ -21,8 +22,9 @@
 | Runtime | Node.js 20 | Lambda 最新穩定版本 | 2025-12-23 |
 | 部署方式 | Serverless Framework | 自動化部署、簡化配置 | 2025-12-23 |
 | 打包工具 | esbuild | 快速、輕量級打包 | 2025-12-23 |
+| 測試框架 | Vitest | 現代化、快速、原生 ESM 支援 | 2025-12-23 |
 | Phase 1 範圍 | ECS + RDS | 涵蓋常用資源類型 | 2025-12-23 |
-| Python 版本 | 3.11 (原型) | 完整的參考實作 | 2025-12-17 |
+| Python 移除 | 2025-12-24 | 統一使用 TypeScript | 2025-12-24 |
 | 實作方式 | TDD + TypeScript Strict | 確保程式碼品質與型別安全 | 2025-12-23 |
 
 ### Blockers
@@ -41,21 +43,8 @@
 
 ### Phase 1: Lambda 函數實作
 
-#### Python 原型 (已完成)
-| ID | Task | Status | Agent | Notes |
-|----|------|--------|-------|-------|
-| P1-01 | 專案結構設計 | ✅ | Gemini CLI | 建立 src/lambda_function/ 目錄結構 |
-| P1-02 | utils/logger.py | ✅ | Gemini CLI | 結構化 JSON logging |
-| P1-03 | core/config.py | ✅ | Gemini CLI | SSM Parameter Store 載入 |
-| P1-04 | discovery/base.py | ✅ | Gemini CLI | 資源發現介面定義 |
-| P1-05 | discovery/tag_discovery.py | ✅ | Gemini CLI | Tag-based 資源發現實作 |
-| P1-06 | handlers/base.py | ✅ | Gemini CLI | 資源 Handler 抽象類別 |
-| P1-07 | handlers/ecs_service.py | ✅ | Gemini CLI | ECS Service 啟停邏輯 |
-| P1-08 | core/scheduler.py | ✅ | Gemini CLI | 時區/工作日判斷 |
-| P1-09 | core/orchestrator.py | ✅ | Claude | 執行協調與錯誤處理 |
-| P1-10 | app.py | ✅ | Claude | Lambda 進入點 |
-| P1-11 | 單元測試 | ✅ | Gemini CLI + Claude | tests/ 目錄，使用 moto |
-| P1-12 | 整合測試 | ✅ | Claude | 本地測試 |
+#### Python 原型 (已移除 - 2025-12-24)
+Python 原型實作已完成階段性任務並移除，專案統一使用 TypeScript 實作。
 
 #### TypeScript 實作 (已完成)
 | ID | Task | Status | Agent | Notes |
@@ -94,9 +83,9 @@
 
 **Path:** `/lights-out/config` (統一路徑，由 AWS Account 隔離)
 
-**格式:** YAML（TypeScript 實作）或 JSON（Python 原型）
+**格式:** YAML
 
-**YAML 範例:**
+**範例:**
 ```yaml
 version: "1.0"
 environment: sss-lab
@@ -141,43 +130,27 @@ schedules:
     holidays: []
 ```
 
-**JSON 範例（Python 原型）:**
-```json
-{
-  "version": "1.0",
-  "environment": "workshop",
-  "region": "ap-southeast-1",
-  "discovery": {
-    "method": "tags",
-    "tag_filters": {
-      "lights-out:managed": "true",
-      "lights-out:env": "workshop"
-    },
-    "resource_types": ["ecs-service", "rds-instance"]
-  }
-}
-```
-
 ### Interface Definitions
 
-```python
-# discovery/base.py
-@dataclass
-class DiscoveredResource:
-    resource_type: str      # "ecs-service"
-    arn: str                # Full AWS ARN
-    resource_id: str        # Human-readable ID
-    priority: int           # From tag, default 50
-    group: str              # Schedule group
-    tags: dict[str, str]
-    metadata: dict
+```typescript
+// src/types.ts
+export interface DiscoveredResource {
+  resourceType: string;     // "ecs-service" | "rds-instance"
+  arn: string;              // Full AWS ARN
+  resourceId: string;       // Human-readable ID (e.g., "cluster/service")
+  priority: number;         // From tag, default 100
+  group: string;            // Schedule group name
+  tags: Record<string, string>;
+  metadata: Record<string, unknown>;
+}
 
-# handlers/base.py
-class ResourceHandler(ABC):
-    def get_status(self) -> dict: ...
-    def start(self) -> HandlerResult: ...
-    def stop(self) -> HandlerResult: ...
-    def is_ready(self) -> bool: ...
+// src/handlers/base.ts
+export interface ResourceHandler {
+  getStatus(): Promise<ResourceStatus>;
+  start(dryRun: boolean): Promise<HandlerResult>;
+  stop(dryRun: boolean): Promise<HandlerResult>;
+  isReady(): Promise<boolean>;
+}
 ```
 
 ### Lambda Response Format
@@ -270,44 +243,62 @@ class ResourceHandler(ABC):
 
 ---
 
-## 📚 AWS API Quick Reference
+## 📚 AWS API Quick Reference (AWS SDK v3)
 
 ### ECS Service
-```python
-ecs = boto3.client('ecs')
+```typescript
+import { ECSClient, DescribeServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 
-# Status
-ecs.describe_services(cluster='name', services=['svc'])
+const ecs = new ECSClient({ region: 'ap-southeast-1' });
 
-# Stop
-ecs.update_service(cluster='name', service='svc', desiredCount=0)
+// Status
+await ecs.send(new DescribeServicesCommand({
+  cluster: 'cluster-name',
+  services: ['service-name']
+}));
 
-# Start
-ecs.update_service(cluster='name', service='svc', desiredCount=1)
+// Stop
+await ecs.send(new UpdateServiceCommand({
+  cluster: 'cluster-name',
+  service: 'service-name',
+  desiredCount: 0
+}));
+
+// Start
+await ecs.send(new UpdateServiceCommand({
+  cluster: 'cluster-name',
+  service: 'service-name',
+  desiredCount: 1
+}));
 ```
 
 ### Resource Groups Tagging API
-```python
-tagging = boto3.client('resourcegroupstaggingapi')
+```typescript
+import { ResourceGroupsTaggingAPIClient, GetResourcesCommand } from '@aws-sdk/client-resource-groups-tagging-api';
 
-tagging.get_resources(
-    TagFilters=[
-        {'Key': 'lights-out:managed', 'Values': ['true']},
-        {'Key': 'lights-out:env', 'Values': ['workshop']}
-    ],
-    ResourceTypeFilters=['ecs:service']
-)
+const tagging = new ResourceGroupsTaggingAPIClient({ region: 'ap-southeast-1' });
+
+await tagging.send(new GetResourcesCommand({
+  TagFilters: [
+    { Key: 'lights-out:managed', Values: ['true'] },
+    { Key: 'lights-out:env', Values: ['workshop'] }
+  ],
+  ResourceTypeFilters: ['ecs:service']
+}));
 ```
 
 ### SSM Parameter Store
-```python
-ssm = boto3.client('ssm')
+```typescript
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 
-response = ssm.get_parameter(
-    Name='/lights-out/workshop/config',
-    WithDecryption=True
-)
-config = json.loads(response['Parameter']['Value'])
+const ssm = new SSMClient({ region: 'ap-southeast-1' });
+
+const response = await ssm.send(new GetParameterCommand({
+  Name: '/lights-out/workshop/config',
+  WithDecryption: true
+}));
+
+const config = yaml.parse(response.Parameter.Value);
 ```
 
 ---
@@ -322,12 +313,12 @@ config = json.loads(response['Parameter']['Value'])
 
 ### TDD 開發流程 (TDD Development Workflow)
 
-為了確保程式碼品質與開發者對需求的理解，Milestone 1.1 的所有核心程式碼開發任務都應遵循 TDD 流程。
+為了確保程式碼品質與開發者對需求的理解，所有核心程式碼開發任務都應遵循 TDD 流程。
 
 1.  **Red (寫一個失敗的測試):**
     -   針對一個具體的功能需求，先在 `tests/` 目錄下撰寫一個對應的單元測試。
     -   這個測試應該會因為功能尚未實作而失敗。
-    -   **指令範例:** `pytest tests/test_core_config.py::test_load_config_from_ssm`
+    -   **指令範例:** `pnpm test tests/core/config.test.ts`
 
 2.  **Green (寫最少的程式碼讓測試通過):**
     -   在 `src/` 目錄下撰寫最精簡的程式碼，剛好能讓前一步的測試通過即可。
@@ -335,9 +326,7 @@ config = json.loads(response['Parameter']['Value'])
 
 3.  **Refactor (重構程式碼):**
     -   在測試持續通過的前提下，重構 `src/` 中的程式碼，改善可讀性、結構和效率。
-    -   確保程式碼符合 `Code Review Checklist` 的所有要求（如 Type hints、Docstring 等）。
-
-所有 Agent 在執行 P1-02 到 P1-11 的任務時，都必須遵循此流程。
+    -   確保程式碼符合 `Code Review Checklist` 的所有要求（TypeScript strict mode、返回型別等）。
 
 ### 執行策略 (Execution Policy)
 
@@ -346,17 +335,16 @@ config = json.loads(response['Parameter']['Value'])
 AI Agents **必須遵守** 以下執行限制：
 
 1. **禁止自動執行測試:**
-   - ❌ 不可自動執行 `pytest`、`python -m pytest` 等測試指令
-   - ✅ 應提供測試指令，讓開發者在虛擬環境中執行
+   - ❌ 不可自動執行 `pnpm test`、`vitest run` 等測試指令
+   - ✅ 應提供測試指令，讓開發者確認後執行
 
 2. **禁止自動執行主程式:**
-   - ❌ 不可自動執行 `python app.py`、`aws lambda invoke` 等主程式
+   - ❌ 不可自動執行 `pnpm deploy`、`aws lambda invoke` 等主程式
    - ✅ 應提供執行指令，說明參數與預期結果
 
 3. **環境說明:**
-   - 開發者使用獨立虛擬環境（venv）管理 Python 依賴
-   - AI Agent 在不同 shell context 執行會導致 `ModuleNotFoundError`
-   - 測試與執行需由開發者在已啟動虛擬環境的終端中進行
+   - 避免意外執行測試或部署影響 AWS 資源狀態
+   - 型別檢查（`pnpm type-check`）可以執行，因為不會影響運行時
 
 **允許的操作:**
 - ✅ 檔案讀寫、搜尋、編輯
@@ -373,26 +361,32 @@ AI Agents **必須遵守** 以下執行限制：
 5. **需要測試時：** 提供完整測試指令，等待開發者回報結果
 
 ### Code Review Checklist
-- [ ] Type hints 完整
-- [ ] Docstring 有寫
+- [ ] TypeScript strict mode 通過
+- [ ] 函式有明確的返回型別
 - [ ] Error handling 正確（不中斷整體流程）
 - [ ] Dry-run 模式有支援
-- [ ] Logging 有結構化輸出
+- [ ] Logging 有結構化輸出（Pino）
+- [ ] 測試覆蓋率 ≥ 80%
+- [ ] Zod schema 有定義（runtime validation）
 
 ---
 
 ## 🗂️ File Dependencies
 
 ```
-app.py
-└── core/orchestrator.py
-    ├── core/config.py
-    │   └── utils/logger.py
-    ├── core/scheduler.py
-    ├── discovery/tag_discovery.py
-    │   └── discovery/base.py
-    └── handlers/ecs_service.py
-        └── handlers/base.py
+index.ts (Lambda handler)
+└── core/orchestrator.ts
+    ├── core/config.ts
+    │   ├── utils/logger.ts
+    │   └── @aws-sdk/client-ssm
+    ├── core/scheduler.ts
+    │   └── date-fns-tz
+    ├── discovery/tag-discovery.ts
+    │   └── @aws-sdk/client-resource-groups-tagging-api
+    └── handlers/
+        ├── ecs-service.ts (@aws-sdk/client-ecs)
+        ├── rds-instance.ts (@aws-sdk/client-rds)
+        └── base.ts (interface)
 ```
 
 **建議實作/修改順序：** 由下往上（先改依賴少的）

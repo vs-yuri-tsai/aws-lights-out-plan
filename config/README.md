@@ -79,10 +79,9 @@ schedules:
 ### 部署到 sss-lab
 
 ```bash
-cd typescript
-npm run deploy
+pnpm deploy
 # 或
-sls deploy --stage sss-lab
+sls deploy --stage poc
 ```
 
 Serverless Framework 會自動：
@@ -111,8 +110,7 @@ sls deploy --stage sss-stage --aws-profile sss-stage
 vim config/sss-lab.yml
 
 # 2. 重新部署（會自動更新 SSM）
-cd typescript
-npm run deploy
+pnpm deploy
 ```
 
 **優點：**
@@ -163,5 +161,5 @@ yamllint config/sss-lab.yml
 ## 相關文件
 
 - [AGENTS.md](../AGENTS.md) - 技術規格與 API 文件
-- [typescript/serverless.yml](../typescript/serverless.yml) - 部署配置
-- [src/core/config.ts](../typescript/src/core/config.ts) - 配置載入與驗證
+- [serverless.yml](../serverless.yml) - 部署配置
+- [src/core/config.ts](../src/core/config.ts) - 配置載入與驗證

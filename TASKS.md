@@ -6,75 +6,47 @@
 
 | Phase | Milestone | Status | Progress |
 |-------|-----------|--------|----------|
-| Phase 1 (Python) | 1.1 核心程式碼開發 | ✅ 完成 | 100% |
-| Phase 1 (TypeScript) | TypeScript 實作 | ✅ 完成 | 100% |
+| Phase 1 | TypeScript 實作 | ✅ 完成 | 100% |
+| Phase 1 | Python 原型 | ✅ 已移除 | - |
 | Phase 1 | AWS 設定與部署 | 🔲 待開始 | 0% |
 | Phase 1 | 排程與驗證 | 🔲 待開始 | 0% |
-| Phase 2 | RDS Handler | 🔲 未排程 | - |
+| Phase 2 | 更多資源類型 | 🔲 未排程 | - |
 | Phase 3 | MCP 整合 | 🔲 未排程 | - |
 
 ### 🎯 Phase 1 成果總結
 
-#### Python 實作（完成日期: 2025-12-17）
+#### TypeScript 實作（完成日期: 2025-12-24）
 
-**程式碼統計**:
-- 核心模組: 8 個（100% 完成）
-- 測試檔案: 11 個（單元測試 + 整合測試）
-- 測試案例: 100+ 個（全部通過 ✅）
-- 文件檔案: 5 個（完整測試指南 + 範例）
-
-**核心架構**:
-```
-src/lambda_function/
-├── app.py                    ✅ Lambda 入口（4 actions + 錯誤處理）
-├── core/
-│   ├── config.py             ✅ SSM 配置載入
-│   ├── scheduler.py          ✅ 時區/假日判斷
-│   └── orchestrator.py       ✅ 執行協調（結果聚合 + 日誌）
-├── discovery/
-│   ├── base.py               ✅ 資源發現介面
-│   └── tag_discovery.py      ✅ Tag-based 發現實作
-├── handlers/
-│   ├── base.py               ✅ Handler 抽象類別
-│   ├── factory.py            ✅ Registry Pattern
-│   └── ecs_service.py        ✅ ECS Service Handler
-└── utils/
-    └── logger.py             ✅ 結構化 JSON 日誌
-```
-
-#### TypeScript 實作（完成日期: 2025-12-23）
-
-**程式碼統計**:
-- 核心模組: 7 個（100% 完成）
-- 測試檔案: 307 個測試檔案
-- Runtime: Node.js 20 + AWS SDK v3
-- 打包工具: Serverless Framework + esbuild
+**專案統計**:
+- 核心模組: 10+ 個（100% 完成）
+- 測試檔案: 完整單元測試與整合測試
+- Runtime: TypeScript 5.9 + Node.js 20.x
+- Framework: Serverless Framework + esbuild
+- Testing: Vitest + aws-sdk-client-mock
+- Validation: Zod runtime validation
 
 **核心架構**:
 ```
-typescript/src/
-├── index.ts                  ✅ Lambda 入口（handler）
+src/
+├── index.ts                  ✅ Lambda handler（4 actions + 錯誤處理）
 ├── types.ts                  ✅ 共用型別定義
 ├── core/
-│   ├── config.ts             ✅ SSM 配置載入
-│   └── orchestrator.ts       ✅ 執行協調器
+│   ├── config.ts             ✅ SSM 配置載入（LRU cache）
+│   ├── scheduler.ts          ✅ 時區/假日判斷
+│   └── orchestrator.ts       ✅ 執行協調（結果聚合 + 日誌）
 ├── discovery/
-│   └── tagDiscovery.ts       ✅ Tag-based 資源發現
+│   └── tag-discovery.ts      ✅ Tag-based 資源發現
 ├── handlers/
-│   ├── base.ts               ✅ Handler 介面
-│   ├── factory.ts            ✅ Factory Pattern
-│   ├── ecsService.ts         ✅ ECS Service Handler
-│   ├── rdsInstance.ts        ✅ RDS Instance Handler
-│   └── index.ts              ✅ Handler 匯出
+│   ├── base.ts               ✅ ResourceHandler 介面
+│   ├── ecs-service.ts        ✅ ECS Service Handler
+│   └── rds-instance.ts       ✅ RDS Instance Handler
 └── utils/
-    └── logger.ts             ✅ 結構化 JSON 日誌
+    └── logger.ts             ✅ Pino 結構化日誌
 ```
 
-**技術亮點**:
-- ✅ 完整 TypeScript strict mode
-- ✅ AWS SDK v3 (modular imports)
-- ✅ Serverless Framework 部署配置
-- ✅ 支援 ECS 與 RDS 資源管理
+#### Python 原型（2025-12-17 完成，2025-12-24 移除）
+
+Python 原型實作已完成階段性任務並移除，專案統一使用 TypeScript 實作。此階段驗證了核心架構設計的可行性。
 
 **下一步**: 準備 AWS 環境設定與部署
 
@@ -82,47 +54,29 @@ typescript/src/
 
 ## Phase 1: Lambda 函數實作
 
-### Milestone 1.1: Python 實作 ✅ **COMPLETED**
+### Milestone 1.1: Python 原型 ✅ **COMPLETED & REMOVED**
 
-| Task | Owner | Status | Notes |
-|------|-------|--------|-------|
-| 建立專案結構 | - | ✅ | src/lambda_function/ 目錄與 __init__.py |
-| 實作 utils/logger.py | Gemini CLI | ✅ | 結構化 JSON logging |
-| 實作 core/config.py | Gemini CLI | ✅ | SSM 配置載入與驗證 |
-| 實作 discovery/base.py | Gemini CLI | ✅ | DiscoveredResource 與 ResourceDiscovery 介面 |
-| 實作 discovery/tag_discovery.py | Gemini CLI | ✅ | Tag-based 資源發現 |
-| 實作 handlers/base.py | Gemini CLI | ✅ | ResourceHandler 抽象類別 + HandlerResult |
-| 實作 handlers/ecs_service.py | Gemini CLI | ✅ | ECS Service 啟停邏輯（含 wait_for_stable） |
-| 實作 handlers/factory.py | Claude | ✅ | Handler Registry Pattern，支援動態註冊 |
-| 實作 core/scheduler.py | Gemini CLI | ✅ | 時區/工作日判斷 |
-| 實作 core/orchestrator.py | Claude | ✅ | 執行協調器（含錯誤處理、日誌、結果聚合） |
-| 實作 app.py | Claude | ✅ | Lambda handler（支援 4 種 actions + 錯誤處理） |
-| 撰寫單元測試 | Gemini CLI + Claude | ✅ | 完整測試覆蓋（10+ 測試檔案，100+ 測試案例） |
-| 整合測試 | Claude | ✅ | tests/integration/test_orchestrator_with_handlers.py |
-| 專案規劃與文件建立 | Claude | ✅ | CLAUDE.md, AGENTS.md, 部署指南等 |
-| 建立架構流程圖 | Gemini CLI | ✅ | docs/diagram.md |
-| 新增 TDD 開發規範 | Gemini CLI | ✅ | 更新 AGENTS.md |
-| 範例與使用文件 | Claude | ✅ | examples/orchestrator_usage.py, lambda_local_test.py |
-| 測試指南與修正文件 | Claude | ✅ | docs/app-testing-guide.md, test-fixes.md |
+Python 原型實作已完成並移除（2025-12-24）。此階段驗證了核心架構設計的可行性，包含 8 個核心模組、100+ 測試案例。
 
 ### Milestone 1.2: TypeScript 實作 ✅ **COMPLETED**
 
 | Task | Owner | Status | Notes |
 |------|-------|--------|-------|
-| 建立 TypeScript 專案結構 | Claude | ✅ | typescript/ 目錄、package.json、tsconfig.json |
-| 實作 utils/logger.ts | Claude | ✅ | 結構化 JSON logging (TypeScript) |
+| 建立 TypeScript 專案結構 | Claude | ✅ | 根目錄、package.json、tsconfig.json |
+| 實作 utils/logger.ts | Claude | ✅ | Pino 結構化 JSON logging |
 | 實作 types.ts | Claude | ✅ | 共用型別定義（Config, Resource, HandlerResult 等） |
-| 實作 core/config.ts | Claude | ✅ | SSM 配置載入（AWS SDK v3） |
-| 實作 discovery/tagDiscovery.ts | Claude | ✅ | Tag-based 資源發現（AWS SDK v3） |
+| 實作 core/config.ts | Claude | ✅ | SSM 配置載入（AWS SDK v3 + LRU cache） |
+| 實作 core/scheduler.ts | Claude | ✅ | 時區與假日邏輯（date-fns-tz） |
+| 實作 discovery/tag-discovery.ts | Claude | ✅ | Tag-based 資源發現（AWS SDK v3） |
 | 實作 handlers/base.ts | Claude | ✅ | ResourceHandler 介面 |
-| 實作 handlers/factory.ts | Claude | ✅ | Handler Factory Pattern |
-| 實作 handlers/ecsService.ts | Claude | ✅ | ECS Service 啟停邏輯（AWS SDK v3） |
-| 實作 handlers/rdsInstance.ts | Claude | ✅ | RDS Instance 啟停邏輯（AWS SDK v3） |
+| 實作 handlers/ecs-service.ts | Claude | ✅ | ECS Service 啟停邏輯（AWS SDK v3） |
+| 實作 handlers/rds-instance.ts | Claude | ✅ | RDS Instance 啟停邏輯（AWS SDK v3） |
 | 實作 core/orchestrator.ts | Claude | ✅ | 執行協調器 |
-| 實作 index.ts | Claude | ✅ | Lambda handler 入口 |
-| 設定 Serverless Framework | Claude | ✅ | serverless.yml + esbuild 打包 |
-| 撰寫測試 | Claude | ✅ | 307 個測試檔案 |
-| TypeScript strict mode 驗證 | Claude | ✅ | 全部模組通過 strict 檢查 |
+| 實作 index.ts | Claude | ✅ | Lambda handler 入口（4 actions） |
+| 設定 Serverless Framework | Claude | ✅ | serverless.yml + esbuild + 多 region |
+| 撰寫測試 | Claude | ✅ | Vitest 完整測試覆蓋 |
+| TypeScript strict mode 驗證 | Claude | ✅ | 全部模組通過 strict 檢查 + Zod validation |
+| 移除 Python 實作 | Claude | ✅ | 統一使用 TypeScript（2025-12-24） |
 
 ### Milestone 1.3: AWS 設定與部署 (待開始)
 
