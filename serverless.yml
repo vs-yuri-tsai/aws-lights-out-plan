@@ -88,7 +88,7 @@ resources:
         Type: String
         Description: Lights Out configuration for ${self:provider.stage} environment
         # Load configuration from external file based on stage
-        Value: ${file(../config/${self:provider.stage}.yml)}
+        Value: ${file(./config/${self:provider.stage}.yml)}
         Tags:
           - Key: project
             Value: lights-out
