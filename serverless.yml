@@ -41,7 +41,7 @@ provider:
     LOG_LEVEL: ${opt:loglevel, 'INFO'}
 
 functions:
-  lights-out:
+  handler:  # Simplified name: lights-out-{stage}-handler
     handler: src/index.main
     runtime: nodejs20.x
     timeout: 300
@@ -80,21 +80,11 @@ plugins:
   - serverless-esbuild
 
 # CloudFormation resources
-resources:
-  Resources:
-    # SSM Parameter for configuration
-    LightsOutConfigParameter:
-      Type: AWS::SSM::Parameter
-      Properties:
-        Name: /lights-out/config
-        Type: String
-        Description: Lights Out configuration for ${self:provider.stage} environment
-        # Load configuration from external file based on stage
-        Value: ${file(./config/${self:provider.stage}.yml)}
-        Tags:
-          - Key: project
-            Value: lights-out
-          - Key: managed-by
-            Value: serverless
-          - Key: stage
-            Value: ${self:provider.stage}
+# NOTE: SSM Parameter is created manually due to CloudFormation Early Validation issues
+# Run this after deployment (or when config changes):
+#
+# Direct from YAML (requires js-yaml):
+# aws ssm put-parameter --name "/lights-out/config" --type "String" \
+#   --value "$(node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(JSON.stringify(yaml.load(fs.readFileSync('config/sss-lab.yml', 'utf8'))));")" \
+#   --description "Lights Out configuration for sss-lab" --region ap-southeast-1 --overwrite
+resources: {}
