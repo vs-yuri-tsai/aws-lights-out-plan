@@ -33,6 +33,16 @@ htmlcov/
 # AWS
 function.zip
 out.json
+response.json
+
+# Serverless
+.serverless/
+.build/
+
+# Config - 如果包含敏感資訊，取消註解以下行
+# config/*.yml
+# !config/README.md
+# !config/*.example.yml
 
 # Logs
 *.log

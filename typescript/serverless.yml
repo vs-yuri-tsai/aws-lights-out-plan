@@ -47,6 +47,23 @@ functions:
     tags:
       project: lights-out
       managed-by: serverless
+    events:
+      # Start resources at 9:00 AM Taipei time (01:00 UTC)
+      - schedule:
+          name: ${self:service}-${self:provider.stage}-start
+          description: Start resources at 9:00 AM Asia/Taipei
+          rate: cron(0 1 ? * MON-FRI *)
+          input:
+            action: start
+          enabled: true
+      # Stop resources at 7:00 PM Taipei time (11:00 UTC)
+      - schedule:
+          name: ${self:service}-${self:provider.stage}-stop
+          description: Stop resources at 7:00 PM Asia/Taipei
+          rate: cron(0 11 ? * MON-FRI *)
+          input:
+            action: stop
+          enabled: true
 
 custom:
   esbuild:
@@ -59,3 +76,23 @@ custom:
 
 plugins:
   - serverless-esbuild
+
+# CloudFormation resources
+resources:
+  Resources:
+    # SSM Parameter for configuration
+    LightsOutConfigParameter:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /lights-out/config
+        Type: String
+        Description: Lights Out configuration for ${self:provider.stage} environment
+        # Load configuration from external file based on stage
+        Value: ${file(../config/${self:provider.stage}.yml)}
+        Tags:
+          - Key: project
+            Value: lights-out
+          - Key: managed-by
+            Value: serverless
+          - Key: stage
+            Value: ${self:provider.stage}

@@ -1,20 +1,19 @@
 version: "1.0"
-environment: sss-lab
+environment: sss-dev
 
 # List of AWS regions to scan for resources
-# Lambda will discover and manage resources across all specified regions
 regions:
   - ap-southeast-1
   - ap-northeast-1
 
 discovery:
   method: tags
-  tagFilters:
+  tags:
     lights-out:managed: "true"
-    lights-out:env: sss-lab
-  resourceTypes:
-    - ecs-service
-    - rds-instance
+    lights-out:env: sss-dev
+  resource_types:
+    - ecs:service
+    - rds:db
 
 resourceDefaults:
   ecs-service:
