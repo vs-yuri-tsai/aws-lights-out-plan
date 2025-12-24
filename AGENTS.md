@@ -92,21 +92,26 @@
 
 ### SSM Configuration Schema
 
-**Path:** `/lights-out/{environment}/config`
+**Path:** `/lights-out/config` (統一路徑，由 AWS Account 隔離)
 
 **格式:** YAML（TypeScript 實作）或 JSON（Python 原型）
 
 **YAML 範例:**
 ```yaml
 version: "1.0"
-environment: workshop
-region: ap-southeast-1
+environment: sss-lab
+
+# Optional: List of AWS regions to scan for resources
+# If omitted, defaults to Lambda's deployment region
+regions:
+  - ap-southeast-1  # Singapore
+  - ap-northeast-1  # Tokyo
 
 discovery:
   method: tags
   tagFilters:
     lights-out:managed: "true"
-    lights-out:env: workshop
+    lights-out:env: sss-lab
   resourceTypes:
     - ecs-service
     - rds-instance

@@ -106,6 +106,7 @@ export interface HandlerResult {
 export interface Config {
   version: string;
   environment: string;
+  regions?: string[];  // Optional list of AWS regions to scan
   discovery: {
     method: string;
     tags?: Record<string, string>;

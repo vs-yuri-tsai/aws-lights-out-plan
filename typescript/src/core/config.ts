@@ -22,6 +22,7 @@ const logger = setupLogger("lights-out:config");
 const ConfigSchema = z.object({
   version: z.string(),
   environment: z.string(),
+  regions: z.array(z.string()).optional(),  // Optional list of AWS regions to scan
   discovery: z.object({
     method: z.string(),
     tags: z.record(z.string()).optional(),

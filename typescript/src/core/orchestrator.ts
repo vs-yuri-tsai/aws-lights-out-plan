@@ -36,6 +36,7 @@ export class Orchestrator {
     // Extract tag filters and resource types from config
     const tagFilters = (discoveryConfig.tags as Record<string, string>) ?? {};
     const resourceTypes = (discoveryConfig.resource_types as string[]) ?? [];
+    const regions = this.config.regions ?? [];
 
     if (Object.keys(tagFilters).length === 0) {
       logger.warn("No tag filters configured for discovery");
@@ -50,9 +51,10 @@ export class Orchestrator {
     logger.info({
       tagFilters,
       resourceTypes,
+      regions: regions.length > 0 ? regions : ["default (Lambda region)"],
     }, "Starting tag-based resource discovery");
 
-    const discovery = new TagDiscovery(tagFilters, resourceTypes);
+    const discovery = new TagDiscovery(tagFilters, resourceTypes, regions);
     const resources = await discovery.discover();
 
     logger.info(`Discovered ${resources.length} resources`);

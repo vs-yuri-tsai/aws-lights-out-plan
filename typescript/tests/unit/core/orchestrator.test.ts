@@ -27,13 +27,15 @@ const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock } = vi.hoisted(
     const MockTagDiscoveryConstructor = vi.fn(function (
       this: any,
       _tagFilters: Record<string, string>,
-      _resourceTypes: string[]
+      _resourceTypes: string[],
+      _regions?: string[]
     ) {
       // Assign the hoisted mock function to the 'discover' method of the instance
       this.discover = mockDiscoverFn;
       // You can also store constructor arguments if needed for assertions on the instance itself
       // this.tagFilters = tagFilters;
       // this.resourceTypes = resourceTypes;
+      // this.regions = regions;
     });
 
     return {
@@ -127,7 +129,8 @@ describe("Orchestrator", () => {
       expect(mockDiscoverFn).toHaveBeenCalledTimes(1);
       expect(TagDiscoveryMock).toHaveBeenCalledWith(
         { "lights-out:managed": "true" },
-        ["ecs:service", "rds:db"]
+        ["ecs:service", "rds:db"],
+        []  // regions parameter (empty array when not configured)
       );
     });
 
@@ -180,6 +183,24 @@ describe("Orchestrator", () => {
       const result = await orchestrator.discoverResources();
 
       expect(result).toEqual([]);
+    });
+
+    it("should pass regions to TagDiscovery when configured", async () => {
+      const configWithRegions: Config = {
+        ...sampleConfig,
+        regions: ["ap-southeast-1", "ap-northeast-1"],
+      };
+
+      orchestrator = new Orchestrator(configWithRegions);
+      mockDiscoverFn.mockResolvedValue([]);
+
+      await orchestrator.discoverResources();
+
+      expect(TagDiscoveryMock).toHaveBeenCalledWith(
+        { "lights-out:managed": "true" },
+        ["ecs:service", "rds:db"],
+        ["ap-southeast-1", "ap-northeast-1"]
+      );
     });
   });
 

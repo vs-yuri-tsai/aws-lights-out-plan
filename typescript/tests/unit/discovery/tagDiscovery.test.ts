@@ -21,6 +21,20 @@ describe("TagDiscovery", () => {
 
       expect(discovery).toBeDefined();
     });
+
+    it("should initialize with multiple regions", () => {
+      const tagFilters = { "lights-out:managed": "true" };
+      const resourceTypes = ["ecs:service"];
+      const regions = ["ap-southeast-1", "ap-northeast-1"];
+      const discovery = new TagDiscovery(tagFilters, resourceTypes, regions);
+
+      expect(discovery).toBeDefined();
+    });
+
+    it("should use default region when no regions specified", () => {
+      const discovery = new TagDiscovery({}, []);
+      expect(discovery).toBeDefined();
+    });
   });
 
   describe("discover()", () => {
@@ -236,5 +250,61 @@ describe("TagDiscovery", () => {
         expect(res.metadata).toEqual(expectedMetadata);
       }
     );
+
+    it("should discover resources across multiple regions", async () => {
+      // Mock responses for different regions
+      taggingMock.on(GetResourcesCommand).resolves({
+        ResourceTagMappingList: [
+          {
+            ResourceARN:
+              "arn:aws:ecs:ap-southeast-1:123456789012:service/cluster-sg/service-sg",
+            Tags: [{ Key: "lights-out:managed", Value: "true" }],
+          },
+        ],
+        PaginationToken: undefined,
+      });
+
+      const discovery = new TagDiscovery(
+        { "lights-out:managed": "true" },
+        ["ecs:service"],
+        ["ap-southeast-1", "ap-northeast-1"]
+      );
+      const resources = await discovery.discover();
+
+      // Should call GetResources for each region
+      expect(taggingMock.calls()).toHaveLength(2);
+      expect(resources.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should handle errors in one region without affecting others", async () => {
+      let callCount = 0;
+      taggingMock.on(GetResourcesCommand).callsFake(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First region succeeds
+          return {
+            ResourceTagMappingList: [
+              {
+                ResourceARN:
+                  "arn:aws:ecs:ap-southeast-1:123456789012:service/cluster/service",
+                Tags: [],
+              },
+            ],
+            PaginationToken: undefined,
+          };
+        }
+        // Second region fails
+        throw new Error("Region unavailable");
+      });
+
+      const discovery = new TagDiscovery(
+        {},
+        ["ecs:service"],
+        ["ap-southeast-1", "ap-northeast-1"]
+      );
+
+      // Should reject when any region fails (Promise.all behavior)
+      await expect(discovery.discover()).rejects.toThrow("Region unavailable");
+    });
   });
 });

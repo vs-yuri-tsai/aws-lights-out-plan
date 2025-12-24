@@ -1,0 +1,38 @@
+version: "1.0"
+environment: sss-dev
+
+# List of AWS regions to scan for resources
+regions:
+  - ap-southeast-1
+  - ap-northeast-1
+
+discovery:
+  method: tags
+  tags:
+    lights-out:managed: "true"
+    lights-out:env: sss-dev
+  resource_types:
+    - ecs:service
+    - rds:db
+
+resourceDefaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    defaultDesiredCount: 1
+  rds-instance:
+    skipFinalSnapshot: true
+    waitTimeout: 600
+
+schedules:
+  default:
+    timezone: Asia/Taipei
+    startTime: "09:00"
+    stopTime: "19:00"
+    activeDays:
+      - MON
+      - TUE
+      - WED
+      - THU
+      - FRI
+    holidays: []

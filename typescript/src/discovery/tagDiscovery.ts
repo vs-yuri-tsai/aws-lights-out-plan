@@ -24,33 +24,62 @@ export class TagDiscovery {
 
   private readonly tagFilters: Record<string, string>;
   private readonly resourceTypes: string[];
-  private readonly client: ResourceGroupsTaggingAPIClient;
+  private readonly regions: string[];
 
   /**
    * Initializes the TagDiscovery strategy.
    *
    * @param tagFilters - Dictionary of tags to filter resources by (e.g., {'lights-out:managed': 'true'})
    * @param resourceTypes - List of AWS resource types to scan (e.g., ['ecs:service'])
-   * @param client - Optional AWS client for testing
+   * @param regions - List of AWS regions to scan (defaults to Lambda's deployment region)
    */
   constructor(
     tagFilters: Record<string, string>,
     resourceTypes: string[],
-    client?: ResourceGroupsTaggingAPIClient
+    regions: string[] = []
   ) {
     this.tagFilters = tagFilters;
     this.resourceTypes = resourceTypes;
-    this.client = client ?? new ResourceGroupsTaggingAPIClient({});
+    // If no regions specified, use the Lambda's deployment region
+    this.regions = regions.length > 0 ? regions : [process.env.AWS_REGION || "ap-southeast-1"];
   }
 
   /**
    * Discovers all resources matching the configured tags and resource types.
-   * Handles pagination from the GetResources API.
+   * Scans across all configured regions in parallel for optimal performance.
    *
    * @returns List of discovered resources with parsed metadata
    */
   async discover(): Promise<DiscoveredResource[]> {
+    logger.info(`Scanning ${this.regions.length} region(s): ${this.regions.join(", ")}`);
+
+    // Discover resources in all regions in parallel
+    const regionPromises = this.regions.map((region) =>
+      this.discoverInRegion(region)
+    );
+
+    const regionResults = await Promise.all(regionPromises);
+
+    // Flatten results from all regions
+    const allResources = regionResults.flat();
+
+    logger.info(`Discovered ${allResources.length} total resources across all regions`);
+    return allResources;
+  }
+
+  /**
+   * Discovers resources in a single region.
+   * Handles pagination from the GetResources API.
+   *
+   * @param region - AWS region to scan
+   * @returns List of discovered resources in this region
+   */
+  private async discoverInRegion(region: string): Promise<DiscoveredResource[]> {
+    logger.debug(`Scanning region: ${region}`);
     const discoveredResources: DiscoveredResource[] = [];
+
+    // Create region-specific client
+    const client = new ResourceGroupsTaggingAPIClient({ region });
 
     // Convert tag filters to AWS API format
     const tagFiltersList = Object.entries(this.tagFilters).map(([key, value]) => ({
@@ -67,7 +96,7 @@ export class TagDiscovery {
         PaginationToken: paginationToken,
       });
 
-      const response = await this.client.send(command);
+      const response = await client.send(command);
 
       // Process each resource in the response
       for (const resourceMap of response.ResourceTagMappingList ?? []) {
@@ -78,6 +107,7 @@ export class TagDiscovery {
       paginationToken = response.PaginationToken;
     } while (paginationToken);
 
+    logger.debug(`Found ${discoveredResources.length} resources in ${region}`);
     return discoveredResources;
   }
 
