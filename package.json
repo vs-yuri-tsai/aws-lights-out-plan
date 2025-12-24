@@ -1,10 +1,48 @@
 {
-	"devDependencies": {
-		"@vitest/coverage-v8": "^4.0.16",
-		"aws-sdk-client-mock": "^4.1.0",
-		"esbuild": "^0.27.2",
-		"serverless": "^4.29.0",
-		"serverless-esbuild": "^1.56.1",
-		"vitest": "^4.0.16"
-	}
+  "name": "aws-lights-out-plan",
+  "version": "1.0.0",
+  "description": "自動在非工作時間關閉 AWS 開發環境資源（ECS Service 等）以節省成本",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc -p tsconfig.build.json --noEmit",
+    "deploy": "serverless deploy --stage poc",
+    "deploy:prod": "serverless deploy --stage prod",
+    "perf-test": "bash scripts/performance-test.sh",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "serverless",
+    "cost-optimization"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-ecs": "^3.954.0",
+    "@aws-sdk/client-rds": "^3.954.0",
+    "@aws-sdk/client-resource-groups-tagging-api": "^3.954.0",
+    "@aws-sdk/client-ssm": "^3.954.0",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "js-yaml": "^4.1.1",
+    "lru-cache": "^11.2.4",
+    "pino": "^10.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.159",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.3",
+    "@vitest/coverage-v8": "^4.0.16",
+    "aws-sdk-client-mock": "^4.1.0",
+    "esbuild": "^0.27.2",
+    "serverless": "^4.29.0",
+    "serverless-esbuild": "^1.57.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
 }

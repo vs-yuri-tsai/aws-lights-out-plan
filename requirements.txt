@@ -1,4 +1,0 @@
-# Production dependencies
-# Note: boto3 is pre-installed in Lambda runtime
-boto3>=1.34.0
-botocore>=1.34.0
