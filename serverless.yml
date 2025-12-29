@@ -3,8 +3,8 @@ service: lights-out
 provider:
   name: aws
   region: ap-southeast-1
-  stage: ${opt:stage, 'sss-lab'}  # 對應 AWS 帳號名稱
-  runtime: nodejs20.x  # Default runtime for all functions
+  stage: ${opt:stage}
+  runtime: nodejs20.x  # TODO: upgrade to 22.x
 
   iam:
     role:
@@ -12,7 +12,7 @@ provider:
         - Effect: Allow
           Action: [ssm:GetParameter]
           Resource:
-            Fn::Sub: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lights-out/*"
+            Fn::Sub: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lights-out/${self:provider.stage}/*"
         - Effect: Allow
           Action: [tag:GetResources]
           Resource: "*"
@@ -37,13 +37,14 @@ provider:
           Resource: "*"
 
   environment:
-    CONFIG_PARAMETER_NAME: /lights-out/config  # 同帳號內只有一個配置
+    CONFIG_PARAMETER_NAME: /lights-out/${self:provider.stage}/config
     LOG_LEVEL: ${opt:loglevel, 'INFO'}
 
 functions:
-  handler:  # Simplified name: lights-out-{stage}-handler
+  handler:
+    name: lights-out-${self:provider.stage}
     handler: src/index.main
-    runtime: nodejs20.x
+    runtime: nodejs20.x  # TODO: upgrade to 22.x
     timeout: 300
     memorySize: 512
     tags:
@@ -75,6 +76,12 @@ custom:
     external: []
     target: node20
     platform: node
+
+  # Config file path resolver for multi-project support
+  configPath: ${self:custom.resolveConfigPath.${self:provider.stage}, '${self:provider.stage}.yml'}
+  resolveConfigPath:
+    pg-development-airsync-dev: pg-development/airsync-dev.yml
+    sss-lab: sss-lab.yml
 
 plugins:
   - serverless-esbuild

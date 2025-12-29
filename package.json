@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
-    "deploy": "serverless deploy"
+    "deploy:sss-lab": "serverless deploy --stage sss-lab",
+    "deploy:airsync-dev": "serverless deploy --stage pg-development-airsync-dev"
   },
   "keywords": [
     "aws",
