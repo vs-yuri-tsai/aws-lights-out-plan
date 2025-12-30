@@ -401,6 +401,11 @@ iam:
         Resource: "*"
       - Effect: Allow
         Action:
+          - application-autoscaling:DescribeScalableTargets
+          - application-autoscaling:RegisterScalableTarget
+        Resource: "*"
+      - Effect: Allow
+        Action:
           - rds:DescribeDBInstances
           - rds:StartDBInstance
           - rds:StopDBInstance
@@ -1115,7 +1120,88 @@ aws events enable-rule --name lights-out-sss-lab-stop --region ap-southeast-1
 
 ---
 
+## ECS Application Auto Scaling 整合
+
+### 功能概述
+
+本專案支援 ECS Service 的 Application Auto Scaling 整合，採用**條件式偵測模式**：
+
+- **有 Auto Scaling 的 Service**: 透過 `RegisterScalableTarget` 管理 MinCapacity/MaxCapacity
+- **無 Auto Scaling 的 Service**: 使用 legacy mode 直接設定 desiredCount
+
+### 配置範例
+
+**有 Auto Scaling 的環境（airsync-dev）:**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    autoScaling:
+      minCapacity: 2      # START 時的最小容量
+      maxCapacity: 6      # START 時的最大容量
+      desiredCount: 3     # START 時的目標數量
+```
+
+**無 Auto Scaling 的環境（sss-lab）:**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    defaultDesiredCount: 1
+    stopBehavior:
+      mode: scale_to_zero
+```
+
+### 運作邏輯
+
+**START 操作:**
+1. 偵測 Service 是否有 Auto Scaling
+2. 如果有：設定 MinCapacity、MaxCapacity 和 desiredCount
+3. 如果無：設定 desiredCount 為 defaultDesiredCount
+
+**STOP 操作:**
+1. 偵測 Service 是否有 Auto Scaling
+2. 如果有：設定 MinCapacity=0, MaxCapacity=0, desiredCount=0
+3. 如果無：根據 stopBehavior 設定 desiredCount
+
+### 驗證檢查清單
+
+部署後驗證 Auto Scaling 整合：
+
+```bash
+# 1. 檢查 CloudWatch Logs 是否偵測到 Auto Scaling
+aws logs tail /aws/lambda/lights-out-{stage}-handler \
+  --region {region} \
+  --since 10m \
+  --filter-pattern "Auto Scaling"
+
+# 2. 測試 START 操作
+aws lambda invoke \
+  --function-name lights-out-{stage}-handler \
+  --payload '{"action":"start","dryRun":true}' \
+  out.json && cat out.json | jq .
+
+# 3. 驗證 AWS Console 的 ECS Service
+# - 確認 desired count 正確
+# - 確認 Auto Scaling MinCapacity/MaxCapacity 正確
+
+# 4. 等待 10 分鐘，確認 Auto Scaling policy 不會與 Lambda 競爭
+```
+
+---
+
 ## 版本歷史
+
+### v3.2 (2025-12-30)
+- **新功能:** ECS Application Auto Scaling 整合（條件式偵測模式）
+- 新增 IAM 權限：`application-autoscaling:DescribeScalableTargets`, `RegisterScalableTarget`
+- 新增配置欄位：`resource_defaults.ecs-service.autoScaling`
+- 更新 config schema 驗證（Zod）
+- 新增已知問題：Serverless Framework + AWS SSO Credentials
 
 ### v3.1 (2025-12-24)
 - **重大變更:** SSM Parameter 改為手動創建（避免 CloudFormation Early Validation 問題）

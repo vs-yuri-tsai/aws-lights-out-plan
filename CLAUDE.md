@@ -7,9 +7,10 @@
 ## Tech Stack
 
 - **Runtime:** TypeScript 5.9 + Node.js 20.x (AWS Lambda)
-- **Framework:** Serverless Framework + serverless-esbuild
+- **Framework:** Serverless Framework + serverless-esbuild + serverless-better-credentials
 - **Trigger:** EventBridge (cron) + SSM Parameter Store (config)
 - **Discovery:** Resource Groups Tagging API
+- **Auto Scaling:** Application Auto Scaling API (conditional detection)
 - **Testing:** Vitest + aws-sdk-client-mock
 - **Logging:** Pino (JSON structured logs)
 - **Validation:** Zod
@@ -70,6 +71,79 @@ lights-out:priority = 100    # 數字越小越優先（啟動先/關閉後）
 - ✅ **ALWAYS** 僅提供指令，由開發者確認後在終端中執行
 
 **Why:** 避免意外執行測試或部署影響 AWS 資源狀態。
+
+## ECS Auto Scaling 整合
+
+**問題：** ECS Services 若有 Application Auto Scaling，直接設定 `desiredCount` 會與 scaling policies 衝突。
+
+**解決方案：條件式偵測（Conditional Detection）**
+
+1. **偵測階段**：Lambda 使用 `DescribeScalableTargets` 檢查 service 是否有 Auto Scaling
+2. **有 Auto Scaling**：
+   - START: 設定 `MinCapacity=N`, `MaxCapacity=M`, `desiredCount=D`
+   - STOP: 設定 `MinCapacity=0`, `MaxCapacity=0`
+3. **無 Auto Scaling（Legacy Mode）**：
+   - START: 設定 `desiredCount=defaultDesiredCount`
+   - STOP: 使用 `stopBehavior` (scale_to_zero/reduce_by_count/reduce_to_count)
+
+**配置範例：**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    # Auto Scaling mode (推薦，有 Auto Scaling 的 service 使用)
+    autoScaling:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 3
+
+    # Legacy mode (fallback，無 Auto Scaling 的 service 使用)
+    defaultDesiredCount: 1
+    stopBehavior:
+      mode: scale_to_zero
+```
+
+**重要：** 如果 service 有 Auto Scaling 但 config 缺少 `autoScaling` 設定，Lambda 會拋出錯誤要求補充配置。
+
+## Known Issues & Workarounds
+
+### Issue #1: Serverless Framework + AWS SSO Credentials
+
+**問題：** `serverless deploy` 無法正確處理 AWS SSO credentials，出現：
+```
+EHOSTUNREACH 169.254.169.254:80
+Could not load credentials from any providers
+```
+
+**Workaround：** 使用 `scripts/deploy-lambda.js` 直接透過 AWS SDK 部署
+
+```bash
+# ❌ 不要用 serverless deploy (會失敗)
+# AWS_PROFILE=pg-development serverless deploy
+
+# ✅ 使用 deploy script (直接 AWS SDK)
+pnpm airsync-dev:lambda
+```
+
+**首次部署例外：** IAM role 更新仍需要 `serverless deploy`（或手動在 Console 更新）
+
+### Issue #2: Config Schema 大小寫
+
+**問題：** YAML config 使用 camelCase (`resourceDefaults`)，但 TypeScript 期望 snake_case (`resource_defaults`)
+
+**解決：** 統一使用 snake_case
+
+```yaml
+# ✅ 正確
+resource_defaults:
+  ecs-service:
+    autoScaling: ...
+
+# ❌ 錯誤（會導致 config 讀取為空物件）
+resourceDefaults:
+  ecs-service:
+    autoScaling: ...
+```
 
 ## Quick Commands
 

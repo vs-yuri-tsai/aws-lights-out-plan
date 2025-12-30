@@ -12,6 +12,7 @@
 
 - ✅ Tag-based 資源自動發現
 - ✅ 支援 ECS Service 與 RDS Instance 管理
+- ✅ ECS Application Auto Scaling 整合（條件式偵測）
 - ✅ 資源優先級控制（避免依賴問題）
 - ✅ TypeScript + AWS SDK v3 實作
 - ✅ Serverless Framework 多 Region 部署
@@ -29,6 +30,7 @@
 | **Trigger** | EventBridge (Cron) |
 | **Config** | SSM Parameter Store (YAML) |
 | **Discovery** | Resource Groups Tagging API |
+| **ECS Auto Scaling** | Application Auto Scaling API (conditional detection) |
 | **Testing** | Vitest + aws-sdk-client-mock |
 | **Logging** | Pino (JSON structured logs) |
 | **Validation** | Zod |
@@ -311,6 +313,7 @@ git commit -m "docs(deployment): update Lambda IAM requirements"
 | Python 移除 | 2025-12-24 | 統一使用 TypeScript | 2025-12-24 |
 | 首次部署環境 | sss-lab | PoC 驗證環境 | 2025-12-29 |
 | EventBridge 排程 | 09:00-19:00 TPE | 週一至五自動啟停 | 2025-12-29 |
+| ECS Auto Scaling 整合 | 條件式偵測模式 | 支援 MinCapacity/MaxCapacity 管理 | 2025-12-30 |
 
 ---
 

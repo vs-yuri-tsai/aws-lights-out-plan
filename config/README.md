@@ -41,12 +41,19 @@ discovery:
     - ecs:service
     - rds:db
 
-resourceDefaults:
+resource_defaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
+
+    # Auto Scaling 整合（推薦）
+    autoScaling:
+      minCapacity: 2      # START 時的最小容量
+      maxCapacity: 6      # START 時的最大容量
+      desiredCount: 3     # START 時的目標數量
+
+    # Legacy 模式（無 Auto Scaling 時使用）
     defaultDesiredCount: 1
-    # 彈性停止行為（新功能）
     stopBehavior:
       mode: "scale_to_zero"  # 預設：完全關閉
       # mode: "reduce_by_count"  # 逐步驗證：每次減少 N 個
@@ -87,9 +94,40 @@ schedules:
 - **resourceDefaults**: 各資源類型的預設行為
 - **schedules**: 排程設定（目前由 EventBridge 管理，此欄位保留供未來使用）
 
-### resourceDefaults.ecs-service.stopBehavior（新功能）
+### resource_defaults.ecs-service.autoScaling（推薦）
 
-彈性停止行為，支援三種模式：
+針對有 Application Auto Scaling 的 ECS Service，透過 MinCapacity/MaxCapacity 管理容量。
+
+```yaml
+resource_defaults:
+  ecs-service:
+    autoScaling:
+      minCapacity: 2      # START 時設定的最小容量
+      maxCapacity: 6      # START 時設定的最大容量
+      desiredCount: 3     # START 時設定的目標容量
+```
+
+**運作邏輯:**
+
+- **START 操作**: 設定 MinCapacity=2, MaxCapacity=6, desiredCount=3
+- **STOP 操作**: 設定 MinCapacity=0, MaxCapacity=0, desiredCount=0（強制停止）
+
+**驗證:**
+
+```yaml
+# autoScaling 配置會被 Zod schema 驗證
+# - minCapacity <= maxCapacity
+# - minCapacity <= desiredCount <= maxCapacity
+```
+
+**條件式偵測:**
+
+- 如果 Service 沒有 Auto Scaling，會自動使用 legacy mode（`defaultDesiredCount` + `stopBehavior`）
+- 如果 Service 有 Auto Scaling 但 config 缺少 `autoScaling` 欄位，會拋出錯誤
+
+### resource_defaults.ecs-service.stopBehavior（Legacy 模式）
+
+僅在**無 Auto Scaling** 的 Service 使用，支援三種模式：
 
 #### 1. scale_to_zero（預設，向下相容）
 
@@ -249,11 +287,143 @@ aws ssm put-parameter \
 - ❌ 與 Git 中的配置不同步
 - ❌ 下次部署會被覆蓋
 
+## ECS Auto Scaling 配置指南
+
+### 何時使用 autoScaling 配置？
+
+**使用場景:**
+
+- ECS Service 已配置 Application Auto Scaling
+- Service 有 target tracking scaling policy 或 step scaling policy
+- 希望 Lambda 與 Auto Scaling policy 協同運作
+
+**檢查方式:**
+
+```bash
+# 檢查 Service 是否有 Auto Scaling
+aws application-autoscaling describe-scalable-targets \
+  --service-namespace ecs \
+  --resource-ids service/{cluster-name}/{service-name} \
+  --scalable-dimension ecs:service:DesiredCount
+```
+
+如果回傳結果有 `ScalableTargets`，表示 Service 有 Auto Scaling。
+
+### autoScaling vs defaultDesiredCount 優先級
+
+**優先級規則:**
+
+1. **Runtime 偵測**: Lambda 執行時會先偵測 Service 是否有 Auto Scaling
+2. **有 Auto Scaling**: 使用 `autoScaling` 配置（如果缺少會拋出錯誤）
+3. **無 Auto Scaling**: 使用 `defaultDesiredCount` + `stopBehavior`
+
+**範例配置（同時提供兩者）:**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    # Auto Scaling mode（優先使用）
+    autoScaling:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 3
+
+    # Legacy mode（fallback）
+    defaultDesiredCount: 1
+    stopBehavior:
+      mode: scale_to_zero
+```
+
+這樣配置的好處：
+
+- 有 Auto Scaling 的 Service 使用 autoScaling 配置
+- 無 Auto Scaling 的 Service 使用 defaultDesiredCount
+- 同一個 Lambda 可以管理混合模式的 Services
+
+### 設定 Auto Scaling 後的預期行為
+
+**START 操作:**
+
+```bash
+# Lambda 執行
+aws lambda invoke --function-name lights-out-{stage}-handler \
+  --payload '{"action":"start"}' out.json
+
+# CloudWatch Logs 應顯示
+# "Detected Auto Scaling configuration" (minCapacity=2, maxCapacity=6)
+# "Managing service via Auto Scaling"
+# "Service started via Auto Scaling (min=2, max=6, desired=3)"
+```
+
+**STOP 操作:**
+
+```bash
+# Lambda 執行
+aws lambda invoke --function-name lights-out-{stage}-handler \
+  --payload '{"action":"stop"}' out.json
+
+# CloudWatch Logs 應顯示
+# "Detected Auto Scaling configuration" (minCapacity=2, maxCapacity=6)
+# "Managing service via Auto Scaling"
+# "Service stopped via Auto Scaling (was 3)"
+```
+
+**驗證 AWS Console:**
+
+- ECS Service → Auto Scaling → MinCapacity/MaxCapacity 應正確
+- ECS Service → Desired count 應正確
+- 等待 10-15 分鐘，確認 Auto Scaling policy 不會將 desired count 調整回原值
+
 ## 常見問題
 
 ### Q: 為什麼配置檔案中的 `tags` 與 `resource_types` 使用底線？
 
 A: 這是為了符合 TypeScript 程式碼中的命名慣例（snake_case）。Serverless Framework 會將 YAML 直接序列化為字串上傳到 SSM，Lambda 再用 js-yaml 解析。
+
+### Q: Service 有 Auto Scaling 但 config 沒有 autoScaling 欄位會如何？
+
+A: Lambda 會拋出錯誤並返回失敗結果：
+
+```json
+{
+  "success": false,
+  "error": "Service has Auto Scaling but config lacks autoScaling settings. Please add resource_defaults.ecs-service.autoScaling to config."
+}
+```
+
+**解決方法:** 在配置檔案中新增 `autoScaling` 欄位。
+
+### Q: 如何遷移現有配置到 Auto Scaling 模式？
+
+A: 分三步驟：
+
+**步驟 1: 檢查現有 Auto Scaling 設定**
+
+```bash
+aws application-autoscaling describe-scalable-targets \
+  --service-namespace ecs \
+  --resource-ids service/{cluster}/{service} \
+  --scalable-dimension ecs:service:DesiredCount \
+  --query 'ScalableTargets[0].{Min:MinCapacity,Max:MaxCapacity}'
+```
+
+**步驟 2: 更新配置檔案**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    autoScaling:
+      minCapacity: {從步驟 1 取得}
+      maxCapacity: {從步驟 1 取得}
+      desiredCount: {期望的啟動數量}
+```
+
+**步驟 3: 重新部署**
+
+```bash
+pnpm deploy:{stage}
+pnpm {stage}:set-config
+```
 
 ### Q: 可以在配置檔案中使用 Serverless 變數嗎？
 
