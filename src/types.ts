@@ -128,6 +128,33 @@ export interface ECSStopBehavior {
 }
 
 /**
+ * ECS Service Auto Scaling configuration.
+ *
+ * Defines Application Auto Scaling MinCapacity/MaxCapacity management.
+ * When configured, this takes precedence over direct desiredCount manipulation.
+ */
+export interface ECSAutoScalingConfig {
+  /**
+   * Minimum capacity when service is running (START operation).
+   * Example: 2 (ensures at least 2 tasks even when scaled down)
+   */
+  minCapacity: number;
+
+  /**
+   * Maximum capacity when service is running (START operation).
+   * Example: 6 (allows scaling up to 6 tasks)
+   */
+  maxCapacity: number;
+
+  /**
+   * Desired count to set when starting service.
+   * Must be between minCapacity and maxCapacity.
+   * Example: 3 (start with 3 tasks, allow Auto Scaling to adjust)
+   */
+  desiredCount: number;
+}
+
+/**
  * ECS Service resource defaults configuration.
  *
  * Defines default behavior for all ECS service operations.
@@ -144,14 +171,24 @@ export interface ECSResourceDefaults {
   stableTimeoutSeconds?: number;
 
   /**
+   * DEPRECATED: Use autoScaling.desiredCount instead.
+   * Only used as fallback when autoScaling is not configured.
    * Target desiredCount when starting services (default: 1).
    */
   defaultDesiredCount?: number;
 
   /**
    * Stop behavior configuration for flexible scaling strategies.
+   * Only used when autoScaling is not configured (legacy mode).
    */
   stopBehavior?: ECSStopBehavior;
+
+  /**
+   * Auto Scaling configuration (recommended for production).
+   * When present, manages MinCapacity/MaxCapacity instead of desiredCount.
+   * Takes precedence over defaultDesiredCount and stopBehavior.
+   */
+  autoScaling?: ECSAutoScalingConfig;
 }
 
 /**

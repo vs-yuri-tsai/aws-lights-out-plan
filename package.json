@@ -37,6 +37,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-application-auto-scaling": "^3.954.0",
     "@aws-sdk/client-ecs": "^3.954.0",
     "@aws-sdk/client-lambda": "^3.954.0",
     "@aws-sdk/client-rds": "^3.954.0",

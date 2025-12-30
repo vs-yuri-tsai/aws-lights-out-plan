@@ -13,6 +13,10 @@ resource_defaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
+    autoScaling:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 3
     defaultDesiredCount: 3
     stopBehavior:
       mode: reduce_by_count

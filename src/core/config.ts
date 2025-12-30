@@ -39,6 +39,23 @@ const ECSStopBehaviorSchema = z.object({
 );
 
 /**
+ * ECS Auto Scaling schema validation.
+ *
+ * Validates the autoScaling configuration for ECS services.
+ */
+const ECSAutoScalingSchema = z.object({
+  minCapacity: z.number().int().nonnegative(),
+  maxCapacity: z.number().int().positive(),
+  desiredCount: z.number().int().nonnegative(),
+}).refine(
+  (data) => data.minCapacity <= data.maxCapacity,
+  { message: "minCapacity must be <= maxCapacity" }
+).refine(
+  (data) => data.desiredCount >= data.minCapacity && data.desiredCount <= data.maxCapacity,
+  { message: "desiredCount must be between minCapacity and maxCapacity" }
+);
+
+/**
  * Configuration schema validation using Zod.
  *
  * Ensures the loaded config has all required fields with proper types.
@@ -57,6 +74,7 @@ const ConfigSchema = z.object({
   }).passthrough().optional(),
   resource_defaults: z.record(z.object({
     stopBehavior: ECSStopBehaviorSchema.optional(),
+    autoScaling: ECSAutoScalingSchema.optional(),
   }).passthrough()).optional(),
 }).passthrough();
 

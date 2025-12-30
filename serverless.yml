@@ -25,6 +25,11 @@ provider:
           Resource: "*"
         - Effect: Allow
           Action:
+            - application-autoscaling:DescribeScalableTargets
+            - application-autoscaling:RegisterScalableTarget
+          Resource: "*"
+        - Effect: Allow
+          Action:
             - rds:DescribeDBInstances
             - rds:StartDBInstance
             - rds:StopDBInstance
@@ -83,6 +88,7 @@ custom:
     sss-lab: sss-lab.yml
 
 plugins:
+  - serverless-better-credentials
   - serverless-esbuild
 
 # CloudFormation resources
