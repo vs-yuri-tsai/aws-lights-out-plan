@@ -1,0 +1,11 @@
+{
+  "scope": "aws-account",
+  "region": "ap-southeast-1",
+  "stage": "sss-lab",
+  "function-name": "lights-out-sss-lab",
+  "config": {
+    "name": "/lights-out/sss-lab/config",
+    "path": "config/sss-lab.yml",
+    "description": "Lights Out configuration for sss-lab account"
+  }
+}
