@@ -12,6 +12,7 @@
 
 - ✅ Tag-based 資源自動發現
 - ✅ 支援 ECS Service 與 RDS Instance 管理
+- ✅ ECS Application Auto Scaling 整合（條件式偵測）
 - ✅ 資源優先級控制（避免依賴問題）
 - ✅ TypeScript + AWS SDK v3 實作
 - ✅ Serverless Framework 多 Region 部署
@@ -29,6 +30,7 @@
 | **Trigger** | EventBridge (Cron) |
 | **Config** | SSM Parameter Store (YAML) |
 | **Discovery** | Resource Groups Tagging API |
+| **ECS Auto Scaling** | Application Auto Scaling API (conditional detection) |
 | **Testing** | Vitest + aws-sdk-client-mock |
 | **Logging** | Pino (JSON structured logs) |
 | **Validation** | Zod |
@@ -96,7 +98,7 @@ pnpm lint
 
 ## 📁 專案結構
 
-```
+```ini
 aws-lights-out-plan/
 ├── src/
 │   ├── index.ts                # Lambda handler 入口
@@ -109,17 +111,15 @@ aws-lights-out-plan/
 │   │   └── tag-discovery.ts    # Tag-based 資源發現
 │   ├── handlers/
 │   │   ├── base.ts             # ResourceHandler 介面
-│   │   ├── ecs-service.ts      # ECS Service Handler
-│   │   └── rds-instance.ts     # RDS Instance Handler
+│   │   ├── ecsService.ts      # ECS Service Handler
+│   │   └── rdsInstance.ts     # RDS Instance Handler
 │   └── utils/
 │       └── logger.ts           # Pino 結構化 logging
 │
 ├── tests/                      # Vitest 測試
 ├── config/                     # SSM 配置範本
 ├── docs/
-│   ├── deployment-guide.md     # 部署指南
-│   ├── ssm-operations-guide.md # SSM 操作指南
-│   └── tagging-guide.md        # 標籤操作手冊
+│   └── deployment-guide.md     # 完整部署與操作手冊
 ├── scripts/                    # Helper scripts
 ├── serverless.yml              # Serverless Framework IaC
 ├── tsconfig.json               # TypeScript 配置 (strict mode)
@@ -131,6 +131,7 @@ aws-lights-out-plan/
 ```
 
 **Why this structure:**
+
 - `handlers/` 模組化：實作 `ResourceHandler` 介面新增資源類型
 - `discovery/` 抽象化：配置與程式碼分離，資源清單動態發現
 - `core/` 業務邏輯：可注入 mock clients，方便單元測試
@@ -142,7 +143,7 @@ aws-lights-out-plan/
 
 所有需要管理的資源**必須**具備以下標籤：
 
-```
+```ini
 lights-out:managed  = true              # 是否納管
 lights-out:env      = workshop          # 環境名稱 (workshop/dev/staging)
 lights-out:priority = 100               # 優先級（數字越小越先啟動/越後關閉）
@@ -150,6 +151,7 @@ lights-out:schedule = default           # 排程群組（可選）
 ```
 
 **範例:**
+
 ```bash
 # ECS Service 標籤
 aws ecs tag-resource \
@@ -159,61 +161,63 @@ aws ecs tag-resource \
          key=lights-out:priority,value=50
 ```
 
-詳見 [docs/tagging-guide.md](./docs/tagging-guide.md)
+詳見 [docs/deployment-guide.md - 標記 AWS 資源](./docs/deployment-guide.md#step-4-標記-aws-資源)
 
 ---
 
-## 🔧 本地測試與部署
+## 🔧 日常操作指令
 
-### 模擬 Lambda 執行
+本專案提供互動式 CLI，所有操作透過選單進行。
+
+### Lambda 操作（啟動/停止資源）
 
 ```bash
-# 本地測試（使用 Serverless Invoke Local）
-pnpm sls invoke local -f lights-out --data '{"action":"status"}'
+# 互動式選單：選擇環境和動作（start/stop/status/discover）
+npm run action
 
+# 執行流程：
+# 1. 選擇目標環境（airsync-dev 或 sss-lab）
+# 2. 選擇操作（Start/Stop/Status/Discover）
+# 3. 自動呼叫對應的 Lambda 函數
+```
+
+### SSM 配置管理
+
+```bash
+# 互動式選單：上傳或下載 SSM Parameter Store 配置
+npm run config
+
+# 執行流程：
+# 1. 選擇目標環境
+# 2. 選擇操作：
+#    - Upload: 部署本地 YAML 到 SSM Parameter Store
+#    - Retrieve: 從 SSM 下載當前配置
+```
+
+### 部署 Lambda
+
+```bash
+# 互動式選單：完整部署或僅更新 Lambda 程式碼
+npm run deploy
+
+# 執行流程：
+# 1. 選擇目標環境
+# 2. 選擇部署模式：
+#    - All: 完整 Serverless 部署（infrastructure + Lambda）
+#    - Lambda Only: 僅更新 Lambda 函數程式碼（快速部署）
+```
+
+### 開發測試
+
+```bash
 # 型別檢查
-pnpm type-check
+npm run type-check
 
-# 檢查打包大小（執行 serverless package 後）
-ls -lh .serverless/
-```
+# 執行測試
+npm test
 
-### 部署至 AWS
-
-```bash
-# 部署至 POC 環境
-pnpm deploy
-
-# 部署至生產環境
-pnpm deploy:prod
-
-# 查看 Lambda 日誌
-pnpm sls logs -f handler --tail --stage poc
-
-# 移除部署
-pnpm sls remove --stage poc
-```
-
-### 手動觸發 Lambda
-
-```bash
-# 查詢資源狀態
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"status"}' \
-  out.json && cat out.json
-
-# 停止資源
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"stop","dryRun":true}' \
-  out.json && cat out.json
-
-# 啟動資源
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"start","dryRun":false}' \
-  out.json && cat out.json
+# 測試覆蓋率
+npm run test:coverage
 ```
 
 ---
@@ -223,9 +227,8 @@ aws lambda invoke \
 - **[CLAUDE.md](./CLAUDE.md)** - AI Agent 專案規範（開始此處）
 - **[AGENTS.md](./AGENTS.md)** - 多 Agent 協作規範 + 技術規格
 - **[TASKS.md](./TASKS.md)** - Milestone 與任務追蹤
-- **[docs/deployment-guide.md](./docs/deployment-guide.md)** - 部署操作手冊
-- **[docs/tagging-guide.md](./docs/tagging-guide.md)** - 資源標籤指南
-- **[docs/ssm-operations-guide.md](./docs/ssm-operations-guide.md)** - SSM 操作指南
+- **[docs/deployment-guide.md](./docs/deployment-guide.md)** - 完整部署與操作手冊
+- **[config/sss-lab.yml](./config/sss-lab.yml)** - 配置範例（含詳細註解）
 
 ---
 
@@ -233,7 +236,7 @@ aws lambda invoke \
 
 ### Commit 規範
 
-```
+```html
 <type>(<scope>): <description>
 
 type: feat|fix|docs|refactor|test|chore
@@ -241,6 +244,7 @@ scope: core|discovery|handlers|config|infra|docs
 ```
 
 **範例:**
+
 ```bash
 git commit -m "feat(handlers): implement RDS instance handler"
 git commit -m "test(core): add scheduler timezone tests"
@@ -308,6 +312,7 @@ git commit -m "docs(deployment): update Lambda IAM requirements"
 | Python 移除 | 2025-12-24 | 統一使用 TypeScript | 2025-12-24 |
 | 首次部署環境 | sss-lab | PoC 驗證環境 | 2025-12-29 |
 | EventBridge 排程 | 09:00-19:00 TPE | 週一至五自動啟停 | 2025-12-29 |
+| ECS Auto Scaling 整合 | 條件式偵測模式 | 支援 MinCapacity/MaxCapacity 管理 | 2025-12-30 |
 
 ---
 

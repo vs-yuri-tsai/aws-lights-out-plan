@@ -20,13 +20,13 @@ describe("Handler Factory", () => {
       discovery: { method: "tags" },
       resource_defaults: {
         "ecs-service": {
-          wait_for_stable: false,
-          stable_timeout_seconds: 300,
-          default_desired_count: 1,
+          waitForStable: false,
+          stableTimeoutSeconds: 300,
+          defaultDesiredCount: 1,
         },
-        "rds-instance": {
-          wait_for_stable: false,
-          stable_timeout_seconds: 600,
+        "rds-db": {
+          waitForStable: false,
+          stableTimeoutSeconds: 600,
         },
       },
     };
@@ -50,9 +50,9 @@ describe("Handler Factory", () => {
       expect(handler).toBeInstanceOf(ECSServiceHandler);
     });
 
-    it("should return RDSInstanceHandler for rds-instance resource type", () => {
+    it("should return RDSInstanceHandler for rds-db resource type", () => {
       const resource: DiscoveredResource = {
-        resourceType: "rds-instance",
+        resourceType: "rds-db",
         arn: "arn:aws:rds:us-east-1:123456:db:my-database",
         resourceId: "my-database",
         priority: 100,
@@ -61,7 +61,7 @@ describe("Handler Factory", () => {
         metadata: {},
       };
 
-      const handler = getHandler("rds-instance", resource, sampleConfig);
+      const handler = getHandler("rds-db", resource, sampleConfig);
 
       expect(handler).toBeDefined();
       expect(handler).toBeInstanceOf(RDSInstanceHandler);
@@ -118,7 +118,7 @@ describe("Handler Factory", () => {
       };
 
       const rdsResource: DiscoveredResource = {
-        resourceType: "rds-instance",
+        resourceType: "rds-db",
         arn: "arn:aws:rds:us-east-1:123456:db:db",
         resourceId: "db",
         priority: 100,
@@ -128,7 +128,7 @@ describe("Handler Factory", () => {
       };
 
       const ecsHandler = getHandler("ecs-service", ecsResource, sampleConfig);
-      const rdsHandler = getHandler("rds-instance", rdsResource, sampleConfig);
+      const rdsHandler = getHandler("rds-db", rdsResource, sampleConfig);
 
       expect(ecsHandler).toBeInstanceOf(ECSServiceHandler);
       expect(rdsHandler).toBeInstanceOf(RDSInstanceHandler);
@@ -147,7 +147,7 @@ describe("Handler Factory", () => {
           metadata: { cluster_name: "c1" },
         },
         {
-          resourceType: "rds-instance",
+          resourceType: "rds-db",
           arn: "arn:aws:rds:us-east-1:123456:db:db1",
           resourceId: "db1",
           priority: 100,

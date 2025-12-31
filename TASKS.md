@@ -18,6 +18,7 @@
 #### TypeScript 實作（完成日期: 2025-12-24）
 
 **專案統計**:
+
 - 核心模組: 10+ 個（100% 完成）
 - 測試檔案: 完整單元測試與整合測試
 - Runtime: TypeScript 5.9 + Node.js 20.x
@@ -26,7 +27,8 @@
 - Validation: Zod runtime validation
 
 **核心架構**:
-```
+
+```ini
 src/
 ├── index.ts                  ✅ Lambda handler（4 actions + 錯誤處理）
 ├── types.ts                  ✅ 共用型別定義
@@ -38,8 +40,8 @@ src/
 │   └── tag-discovery.ts      ✅ Tag-based 資源發現
 ├── handlers/
 │   ├── base.ts               ✅ ResourceHandler 介面
-│   ├── ecs-service.ts        ✅ ECS Service Handler
-│   └── rds-instance.ts       ✅ RDS Instance Handler
+│   ├── ecsService.ts        ✅ ECS Service Handler
+│   └── rdsInstance.ts       ✅ RDS Instance Handler
 └── utils/
     └── logger.ts             ✅ Pino 結構化日誌
 ```
@@ -69,8 +71,8 @@ Python 原型實作已完成並移除（2025-12-24）。此階段驗證了核心
 | 實作 core/scheduler.ts | Claude | ✅ | 時區與假日邏輯（date-fns-tz） |
 | 實作 discovery/tag-discovery.ts | Claude | ✅ | Tag-based 資源發現（AWS SDK v3） |
 | 實作 handlers/base.ts | Claude | ✅ | ResourceHandler 介面 |
-| 實作 handlers/ecs-service.ts | Claude | ✅ | ECS Service 啟停邏輯（AWS SDK v3） |
-| 實作 handlers/rds-instance.ts | Claude | ✅ | RDS Instance 啟停邏輯（AWS SDK v3） |
+| 實作 handlers/ecsService.ts | Claude | ✅ | ECS Service 啟停邏輯（AWS SDK v3） |
+| 實作 handlers/rdsInstance.ts | Claude | ✅ | RDS Instance 啟停邏輯（AWS SDK v3） |
 | 實作 core/orchestrator.ts | Claude | ✅ | 執行協調器 |
 | 實作 index.ts | Claude | ✅ | Lambda handler 入口（4 actions） |
 | 設定 Serverless Framework | Claude | ✅ | serverless.yml + esbuild + 多 region |
@@ -139,6 +141,7 @@ Python 原型實作已完成並移除（2025-12-24）。此階段驗證了核心
 ## Done Log
 
 ### Python 實作階段
+
 | Date | Task | Agent | Notes |
 |------|------|-------|-------|
 | 2025-12-09 | 專案規劃與文件建立 | Claude | CLAUDE.md, AGENTS.md, 部署指南等 |
@@ -158,6 +161,7 @@ Python 原型實作已完成並移除（2025-12-24）。此階段驗證了核心
 | 2025-12-17 | 測試修正與文件 | Claude | 修正 MagicMock 序列化問題 + 完整測試指南 |
 
 ### TypeScript 實作階段
+
 | Date | Task | Agent | Notes |
 |------|------|-------|-------|
 | 2025-12-18 | TypeScript 專案初始化 | Claude | 建立 typescript/ 目錄、設定檔 |

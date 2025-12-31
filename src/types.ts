@@ -101,6 +101,97 @@ export interface HandlerResult {
 }
 
 /**
+ * ECS Service stop behavior configuration.
+ *
+ * Defines how ECS services should be scaled down during stop operations.
+ */
+export interface ECSStopBehavior {
+  /**
+   * Stop mode strategy:
+   * - scale_to_zero: Set desiredCount to 0 (default, backward compatible)
+   * - reduce_by_count: Reduce current desiredCount by a specific amount
+   * - reduce_to_count: Set desiredCount to a specific target value
+   */
+  mode: "scale_to_zero" | "reduce_by_count" | "reduce_to_count";
+
+  /**
+   * Amount to reduce when mode is "reduce_by_count".
+   * Example: If current is 3 and reduceByCount is 1, target will be 2.
+   */
+  reduceByCount?: number;
+
+  /**
+   * Target count when mode is "reduce_to_count".
+   * Example: If reduceToCount is 1, service will always scale to 1.
+   */
+  reduceToCount?: number;
+}
+
+/**
+ * ECS Service Auto Scaling configuration.
+ *
+ * Defines Application Auto Scaling MinCapacity/MaxCapacity management.
+ * When configured, this takes precedence over direct desiredCount manipulation.
+ */
+export interface ECSAutoScalingConfig {
+  /**
+   * Minimum capacity when service is running (START operation).
+   * Example: 2 (ensures at least 2 tasks even when scaled down)
+   */
+  minCapacity: number;
+
+  /**
+   * Maximum capacity when service is running (START operation).
+   * Example: 6 (allows scaling up to 6 tasks)
+   */
+  maxCapacity: number;
+
+  /**
+   * Desired count to set when starting service.
+   * Must be between minCapacity and maxCapacity.
+   * Example: 3 (start with 3 tasks, allow Auto Scaling to adjust)
+   */
+  desiredCount: number;
+}
+
+/**
+ * ECS Service resource defaults configuration.
+ *
+ * Defines default behavior for all ECS service operations.
+ */
+export interface ECSResourceDefaults {
+  /**
+   * Whether to wait for service to stabilize after operations.
+   */
+  waitForStable?: boolean;
+
+  /**
+   * Maximum seconds to wait for stabilization (default: 300).
+   */
+  stableTimeoutSeconds?: number;
+
+  /**
+   * DEPRECATED: Use autoScaling.desiredCount instead.
+   * Only used as fallback when autoScaling is not configured.
+   * Target desiredCount when starting services (default: 1).
+   */
+  defaultDesiredCount?: number;
+
+  /**
+   * Stop behavior configuration for flexible scaling strategies.
+   * Only used when autoScaling is not configured (legacy mode).
+   */
+  stopBehavior?: ECSStopBehavior;
+
+  /**
+   * Auto Scaling configuration (recommended for production).
+   * When present, manages MinCapacity/MaxCapacity instead of desiredCount.
+   * Takes precedence over defaultDesiredCount and stopBehavior.
+   */
+  autoScaling?: ECSAutoScalingConfig;
+}
+
+/**
  * Configuration from SSM Parameter Store.
  */
 export interface Config {

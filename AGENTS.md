@@ -7,6 +7,7 @@
 ## 📍 Shared State
 
 ### Current Phase
+
 - [x] Phase 0: 專案初始化（文件規劃）
 - [x] Phase 1.1: Python 原型實作（已移除）
 - [x] Phase 1.2: TypeScript 完整實作（完成）
@@ -19,6 +20,7 @@
 **Phase 1 已全部完成（2025-12-29）**
 
 ### Active Decisions
+
 | 決策 | 選擇 | 理由 | 日期 |
 |------|------|------|------|
 | 主要語言 | TypeScript | 現代化、型別安全、AWS SDK v3 | 2025-12-23 |
@@ -33,11 +35,15 @@
 | 排程時間 | 09:00-19:00 TPE | 週一至五工作時間 | 2025-12-29 |
 
 ### Blockers
+
 <!-- Agent 遇到阻礙時在此記錄 -->
+
 - None
 
 ### File Locks
+
 <!-- 避免同時編輯，開始前登記 -->
+
 | File | Agent | Since |
 |------|-------|-------|
 | - | - | - |
@@ -49,9 +55,11 @@
 ### Phase 1: Lambda 函數實作
 
 #### Python 原型 (已移除 - 2025-12-24)
+
 Python 原型實作已完成階段性任務並移除，專案統一使用 TypeScript 實作。
 
 #### TypeScript 實作 (已完成)
+
 | ID | Task | Status | Agent | Notes |
 |----|------|--------|-------|-------|
 | TS-01 | TypeScript 專案初始化 | ✅ | Claude | package.json, tsconfig.json |
@@ -91,6 +99,7 @@ Python 原型實作已完成階段性任務並移除，專案統一使用 TypeSc
 **格式:** YAML
 
 **範例:**
+
 ```yaml
 version: "1.0"
 environment: sss-lab
@@ -108,14 +117,14 @@ discovery:
     lights-out:env: sss-lab
   resourceTypes:
     - ecs-service
-    - rds-instance
+    - rds-db
 
 resourceDefaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
     defaultDesiredCount: 1
-  rds-instance:
+  rds-db:
     skipFinalSnapshot: true
     waitTimeout: 600
 
@@ -140,7 +149,7 @@ schedules:
 ```typescript
 // src/types.ts
 export interface DiscoveredResource {
-  resourceType: string;     // "ecs-service" | "rds-instance"
+  resourceType: string;     // "ecs-service" | "rds-db"
   arn: string;              // Full AWS ARN
   resourceId: string;       // Human-readable ID (e.g., "cluster/service")
   priority: number;         // From tag, default 100
@@ -251,6 +260,7 @@ export interface ResourceHandler {
 ## 📚 AWS API Quick Reference (AWS SDK v3)
 
 ### ECS Service
+
 ```typescript
 import { ECSClient, DescribeServicesCommand, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 
@@ -278,6 +288,7 @@ await ecs.send(new UpdateServiceCommand({
 ```
 
 ### Resource Groups Tagging API
+
 ```typescript
 import { ResourceGroupsTaggingAPIClient, GetResourcesCommand } from '@aws-sdk/client-resource-groups-tagging-api';
 
@@ -293,6 +304,7 @@ await tagging.send(new GetResourcesCommand({
 ```
 
 ### SSM Parameter Store
+
 ```typescript
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 
@@ -311,6 +323,7 @@ const config = yaml.parse(response.Parameter.Value);
 ## 🤝 Working Agreements
 
 ### Agent 分工建議
+
 | Agent | 擅長 | 建議任務 |
 |-------|------|----------|
 | Claude Code | 架構、複雜邏輯 | handlers、orchestrator |
@@ -320,18 +333,21 @@ const config = yaml.parse(response.Parameter.Value);
 
 為了確保程式碼品質與開發者對需求的理解，所有核心程式碼開發任務都應遵循 TDD 流程。
 
-1.  **Red (寫一個失敗的測試):**
-    -   針對一個具體的功能需求，先在 `tests/` 目錄下撰寫一個對應的單元測試。
-    -   這個測試應該會因為功能尚未實作而失敗。
-    -   **指令範例:** `pnpm test tests/core/config.test.ts`
+1. **Red (寫一個失敗的測試):**
 
-2.  **Green (寫最少的程式碼讓測試通過):**
-    -   在 `src/` 目錄下撰寫最精簡的程式碼，剛好能讓前一步的測試通過即可。
-    -   此階段不追求完美的程式碼結構或效能。
+   - 針對一個具體的功能需求，先在 `tests/` 目錄下撰寫一個對應的單元測試。
+   - 這個測試應該會因為功能尚未實作而失敗。
+   - **指令範例:** `pnpm test tests/core/config.test.ts`
 
-3.  **Refactor (重構程式碼):**
-    -   在測試持續通過的前提下，重構 `src/` 中的程式碼，改善可讀性、結構和效率。
-    -   確保程式碼符合 `Code Review Checklist` 的所有要求（TypeScript strict mode、返回型別等）。
+2. **Green (寫最少的程式碼讓測試通過):**
+
+   - 在 `src/` 目錄下撰寫最精簡的程式碼，剛好能讓前一步的測試通過即可。
+   - 此階段不追求完美的程式碼結構或效能。
+
+3. **Refactor (重構程式碼):**
+
+   - 在測試持續通過的前提下，重構 `src/` 中的程式碼，改善可讀性、結構和效率。
+   - 確保程式碼符合 `Code Review Checklist` 的所有要求（TypeScript strict mode、返回型別等）。
 
 ### 執行策略 (Execution Policy)
 
@@ -340,18 +356,22 @@ const config = yaml.parse(response.Parameter.Value);
 AI Agents **必須遵守** 以下執行限制：
 
 1. **禁止自動執行測試:**
+
    - ❌ 不可自動執行 `pnpm test`、`vitest run` 等測試指令
    - ✅ 應提供測試指令，讓開發者確認後執行
 
 2. **禁止自動執行主程式:**
+
    - ❌ 不可自動執行 `pnpm deploy`、`aws lambda invoke` 等主程式
    - ✅ 應提供執行指令，說明參數與預期結果
 
 3. **環境說明:**
+
    - 避免意外執行測試或部署影響 AWS 資源狀態
    - 型別檢查（`pnpm type-check`）可以執行，因為不會影響運行時
 
 **允許的操作:**
+
 - ✅ 檔案讀寫、搜尋、編輯
 - ✅ 靜態程式碼分析（Grep、Glob）
 - ✅ Git 操作（status、diff、commit）
@@ -366,6 +386,7 @@ AI Agents **必須遵守** 以下執行限制：
 5. **需要測試時：** 提供完整測試指令，等待開發者回報結果
 
 ### Code Review Checklist
+
 - [ ] TypeScript strict mode 通過
 - [ ] 函式有明確的返回型別
 - [ ] Error handling 正確（不中斷整體流程）
@@ -378,7 +399,7 @@ AI Agents **必須遵守** 以下執行限制：
 
 ## 🗂️ File Dependencies
 
-```
+```ini
 index.ts (Lambda handler)
 └── core/orchestrator.ts
     ├── core/config.ts
@@ -389,8 +410,8 @@ index.ts (Lambda handler)
     ├── discovery/tag-discovery.ts
     │   └── @aws-sdk/client-resource-groups-tagging-api
     └── handlers/
-        ├── ecs-service.ts (@aws-sdk/client-ecs)
-        ├── rds-instance.ts (@aws-sdk/client-rds)
+        ├── ecsService.ts (@aws-sdk/client-ecs)
+        ├── rdsInstance.ts (@aws-sdk/client-rds)
         └── base.ts (interface)
 ```
 

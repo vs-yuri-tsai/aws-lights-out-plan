@@ -11,7 +11,7 @@ import { RDSInstanceHandler } from "@handlers/rdsInstance";
 /**
  * Get a handler for a specific resource type.
  *
- * @param resourceType - Type of the resource (e.g., "ecs-service", "rds-instance")
+ * @param resourceType - Type of the resource (e.g., "ecs-service", "rds-db")
  * @param resource - The discovered resource object
  * @param config - Configuration object from SSM
  * @returns ResourceHandler instance or null if handler not found

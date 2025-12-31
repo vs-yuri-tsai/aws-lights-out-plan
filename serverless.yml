@@ -2,9 +2,9 @@ service: lights-out
 
 provider:
   name: aws
-  region: ap-southeast-1
-  stage: ${opt:stage, 'sss-lab'}  # 對應 AWS 帳號名稱
-  runtime: nodejs20.x  # Default runtime for all functions
+  region: ${opt:region}
+  stage: ${opt:stage}
+  runtime: nodejs20.x  # TODO: upgrade to 22.x
 
   iam:
     role:
@@ -12,7 +12,7 @@ provider:
         - Effect: Allow
           Action: [ssm:GetParameter]
           Resource:
-            Fn::Sub: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lights-out/*"
+            Fn::Sub: "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lights-out/${self:provider.stage}/*"
         - Effect: Allow
           Action: [tag:GetResources]
           Resource: "*"
@@ -22,6 +22,11 @@ provider:
             - ecs:UpdateService
             - ecs:ListServices
             - ecs:DescribeClusters
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - application-autoscaling:DescribeScalableTargets
+            - application-autoscaling:RegisterScalableTarget
           Resource: "*"
         - Effect: Allow
           Action:
@@ -37,35 +42,35 @@ provider:
           Resource: "*"
 
   environment:
-    CONFIG_PARAMETER_NAME: /lights-out/config  # 同帳號內只有一個配置
+    CONFIG_PARAMETER_NAME: /lights-out/${self:provider.stage}/config
     LOG_LEVEL: ${opt:loglevel, 'INFO'}
 
 functions:
-  handler:  # Simplified name: lights-out-{stage}-handler
+  handler:
+    name: lights-out-${self:provider.stage}
     handler: src/index.main
-    runtime: nodejs20.x
+    runtime: nodejs20.x  # TODO: upgrade to 22.x
     timeout: 300
     memorySize: 512
     tags:
       project: lights-out
       managed-by: serverless
     events:
-      # Start resources at 9:00 AM Taipei time (01:00 UTC)
+      # Dynamic schedules loaded from config file
       - schedule:
           name: ${self:service}-${self:provider.stage}-start
-          description: Start resources at 9:00 AM Asia/Taipei
-          rate: cron(0 1 ? * MON-FRI *)
+          description: ${file(config/${self:custom.configPath}):schedules_cron.start.description}
+          rate: cron(${file(config/${self:custom.configPath}):schedules_cron.start.expression})
           input:
             action: start
-          enabled: true
-      # Stop resources at 7:00 PM Taipei time (11:00 UTC)
+          enabled: ${file(config/${self:custom.configPath}):schedules_cron.start.enabled}
       - schedule:
           name: ${self:service}-${self:provider.stage}-stop
-          description: Stop resources at 7:00 PM Asia/Taipei
-          rate: cron(0 11 ? * MON-FRI *)
+          description: ${file(config/${self:custom.configPath}):schedules_cron.stop.description}
+          rate: cron(${file(config/${self:custom.configPath}):schedules_cron.stop.expression})
           input:
             action: stop
-          enabled: true
+          enabled: ${file(config/${self:custom.configPath}):schedules_cron.stop.enabled}
 
 custom:
   esbuild:
@@ -73,18 +78,19 @@ custom:
     minify: true
     sourcemap: true
     external: []
-    target: node20
+    target: node20 #TODO upgrade to node22
     platform: node
 
+  # Config file path resolver for multi-project support
+  configPath: ${self:custom.resolveConfigPath.${self:provider.stage}, '${self:provider.stage}.yml'}
+  resolveConfigPath:
+    pg-development-airsync-dev: pg-development/airsync-dev.yml
+    sss-lab: sss-lab.yml
+
 plugins:
+  - serverless-better-credentials
   - serverless-esbuild
 
 # CloudFormation resources
 # NOTE: SSM Parameter is created manually due to CloudFormation Early Validation issues
-# Run this after deployment (or when config changes):
-#
-# Direct from YAML (requires js-yaml):
-# aws ssm put-parameter --name "/lights-out/config" --type "String" \
-#   --value "$(node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(JSON.stringify(yaml.load(fs.readFileSync('config/sss-lab.yml', 'utf8'))));")" \
-#   --description "Lights Out configuration for sss-lab" --region ap-southeast-1 --overwrite
 resources: {}

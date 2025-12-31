@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
-    "deploy": "serverless deploy"
+    "action": "node scripts/run-interactive.js --mode action",
+    "config": "node scripts/run-interactive.js --mode config",
+    "deploy": "node scripts/run-interactive.js --mode deploy"
   },
   "keywords": [
     "aws",
@@ -22,7 +24,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-application-auto-scaling": "^3.954.0",
     "@aws-sdk/client-ecs": "^3.954.0",
+    "@aws-sdk/client-lambda": "^3.954.0",
     "@aws-sdk/client-rds": "^3.954.0",
     "@aws-sdk/client-resource-groups-tagging-api": "^3.954.0",
     "@aws-sdk/client-ssm": "^3.954.0",
@@ -40,7 +44,9 @@
     "@vitest/coverage-v8": "^4.0.16",
     "aws-sdk-client-mock": "^4.1.0",
     "esbuild": "^0.27.2",
+    "prompts": "^2.4.2",
     "serverless": "^3.39.0",
+    "serverless-better-credentials": "^2.0.1",
     "serverless-esbuild": "^1.57.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"

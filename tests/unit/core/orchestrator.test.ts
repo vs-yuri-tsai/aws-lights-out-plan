@@ -111,7 +111,7 @@ describe("Orchestrator", () => {
           metadata: { cluster_name: "cluster" },
         },
         {
-          resourceType: "rds-instance",
+          resourceType: "rds-db",
           arn: "arn:aws:rds:us-east-1:123456:db:my-database",
           resourceId: "my-database",
           priority: 100,
@@ -255,7 +255,7 @@ describe("Orchestrator", () => {
           metadata: { cluster_name: "c1" },
         },
         {
-          resourceType: "rds-instance",
+          resourceType: "rds-db",
           arn: "arn:aws:rds:us-east-1:123456:db:db1",
           resourceId: "db1",
           priority: 100,
@@ -279,7 +279,7 @@ describe("Orchestrator", () => {
         start: vi.fn().mockResolvedValue({
           success: false,
           action: "start",
-          resourceType: "rds-instance",
+          resourceType: "rds-db",
           resourceId: "db1",
           message: "Failed to start",
           error: "Database is in invalid state",

@@ -12,10 +12,15 @@ import {
   DescribeServicesCommand,
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs";
+import {
+  ApplicationAutoScalingClient,
+  DescribeScalableTargetsCommand,
+} from "@aws-sdk/client-application-auto-scaling";
 import { ECSServiceHandler } from "@handlers/ecsService";
 import type { DiscoveredResource, Config } from "@/types";
 
 const ecsMock = mockClient(ECSClient);
+const autoScalingMock = mockClient(ApplicationAutoScalingClient);
 
 describe("ECSServiceHandler", () => {
   let sampleResource: DiscoveredResource;
@@ -23,6 +28,12 @@ describe("ECSServiceHandler", () => {
 
   beforeEach(() => {
     ecsMock.reset();
+    autoScalingMock.reset();
+
+    // Mock Auto Scaling API to return no scaling targets (legacy mode)
+    autoScalingMock.on(DescribeScalableTargetsCommand).resolves({
+      ScalableTargets: [],
+    });
 
     sampleResource = {
       resourceType: "ecs-service",
@@ -46,9 +57,9 @@ describe("ECSServiceHandler", () => {
       },
       resource_defaults: {
         "ecs-service": {
-          wait_for_stable: false, // Disable for faster tests
-          stable_timeout_seconds: 300,
-          default_desired_count: 1,
+          waitForStable: false, // Disable for faster tests
+          stableTimeoutSeconds: 300,
+          defaultDesiredCount: 1,
         },
       },
     };
@@ -223,7 +234,8 @@ describe("ECSServiceHandler", () => {
 
       expect(result.success).toBe(true);
       expect(result.action).toBe("stop");
-      expect(result.message).toContain("Service scaled to 0 (was 2)");
+      expect(result.message).toContain("Service scaled to 0");
+      expect(result.message).toContain("was 2");
       expect(result.previousState).toMatchObject({
         desired_count: 2,
         running_count: 2,
@@ -244,8 +256,8 @@ describe("ECSServiceHandler", () => {
         ...sampleConfig,
         resource_defaults: {
           "ecs-service": {
-            wait_for_stable: true,
-            stable_timeout_seconds: 20, // Must be > minDelay (15s)
+            waitForStable: true,
+            stableTimeoutSeconds: 20, // Must be > minDelay (15s)
           },
         },
       };
@@ -298,7 +310,7 @@ describe("ECSServiceHandler", () => {
       ).toBeGreaterThan(1);
     });
 
-    it("should be idempotent - return success if already stopped", async () => {
+    it("should be idempotent - return success if already at target count", async () => {
       ecsMock.on(DescribeServicesCommand).resolves({
         services: [
           {
@@ -314,7 +326,7 @@ describe("ECSServiceHandler", () => {
       const result = await handler.stop();
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe("Service already stopped");
+      expect(result.message).toContain("Service already at target count 0");
 
       // UpdateServiceCommand should NOT be called
       const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
@@ -331,6 +343,267 @@ describe("ECSServiceHandler", () => {
       expect(result.action).toBe("stop");
       expect(result.message).toBe("Stop operation failed");
       expect(result.error).toContain("Network error");
+    });
+
+    describe("flexible stop behavior", () => {
+      it("should use scale_to_zero mode when stopBehavior not configured (backward compatibility)", async () => {
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 3,
+              runningCount: 3,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        ecsMock.on(UpdateServiceCommand).resolves({
+          service: { serviceName: "test-service", desiredCount: 0 },
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, sampleConfig);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service scaled to 0");
+        expect(result.message).toContain("was 3");
+
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls[0].args[0].input.desiredCount).toBe(0);
+      });
+
+      it("should reduce by count when mode is reduce_by_count", async () => {
+        const configWithReduceByCount: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_by_count",
+                reduceByCount: 1,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 3,
+              runningCount: 3,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        ecsMock.on(UpdateServiceCommand).resolves({
+          service: { serviceName: "test-service", desiredCount: 2 },
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceByCount);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service scaled to 2");
+        expect(result.message).toContain("was 3");
+
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls[0].args[0].input.desiredCount).toBe(2);
+      });
+
+      it("should reduce by custom count when reduceByCount is specified", async () => {
+        const configWithReduceBy2: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_by_count",
+                reduceByCount: 2,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 5,
+              runningCount: 5,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        ecsMock.on(UpdateServiceCommand).resolves({
+          service: { serviceName: "test-service", desiredCount: 3 },
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceBy2);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service scaled to 3");
+        expect(result.message).toContain("was 5");
+
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls[0].args[0].input.desiredCount).toBe(3);
+      });
+
+      it("should floor at 0 when reduce_by_count would go negative", async () => {
+        const configWithReduceByCount: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_by_count",
+                reduceByCount: 3,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 1,
+              runningCount: 1,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        ecsMock.on(UpdateServiceCommand).resolves({
+          service: { serviceName: "test-service", desiredCount: 0 },
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceByCount);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service scaled to 0");
+        expect(result.message).toContain("was 1");
+
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls[0].args[0].input.desiredCount).toBe(0);
+      });
+
+      it("should set to specific count when mode is reduce_to_count", async () => {
+        const configWithReduceToCount: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_to_count",
+                reduceToCount: 1,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 5,
+              runningCount: 5,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        ecsMock.on(UpdateServiceCommand).resolves({
+          service: { serviceName: "test-service", desiredCount: 1 },
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceToCount);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service scaled to 1");
+        expect(result.message).toContain("was 5");
+
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls[0].args[0].input.desiredCount).toBe(1);
+      });
+
+      it("should be idempotent when already at target count (reduce_by_count mode)", async () => {
+        const configWithReduceByCount: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_by_count",
+                reduceByCount: 1,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 0,
+              runningCount: 0,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceByCount);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service already at target count 0");
+
+        // UpdateServiceCommand should NOT be called
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls).toHaveLength(0);
+      });
+
+      it("should be idempotent when already at target count (reduce_to_count mode)", async () => {
+        const configWithReduceToCount: Config = {
+          ...sampleConfig,
+          resource_defaults: {
+            "ecs-service": {
+              waitForStable: false,
+              stopBehavior: {
+                mode: "reduce_to_count",
+                reduceToCount: 2,
+              },
+            },
+          },
+        };
+
+        ecsMock.on(DescribeServicesCommand).resolves({
+          services: [
+            {
+              serviceName: "test-service",
+              desiredCount: 2,
+              runningCount: 2,
+              status: "ACTIVE",
+            },
+          ],
+        });
+
+        const handler = new ECSServiceHandler(sampleResource, configWithReduceToCount);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain("Service already at target count 2");
+
+        // UpdateServiceCommand should NOT be called
+        const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
+        expect(updateCalls).toHaveLength(0);
+      });
     });
   });
 
@@ -359,7 +632,7 @@ describe("ECSServiceHandler", () => {
 
       expect(result.success).toBe(true);
       expect(result.action).toBe("start");
-      expect(result.message).toBe("Service scaled to 1");
+      expect(result.message).toContain("Service scaled to 1");
 
       const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
       expect(updateCalls).toHaveLength(1);
@@ -375,9 +648,9 @@ describe("ECSServiceHandler", () => {
         ...sampleConfig,
         resource_defaults: {
           "ecs-service": {
-            wait_for_stable: true,
-            stable_timeout_seconds: 20, // Must be > minDelay (15s)
-            default_desired_count: 1,
+            waitForStable: true,
+            stableTimeoutSeconds: 20, // Must be > minDelay (15s)
+            defaultDesiredCount: 1,
           },
         },
       };
@@ -433,9 +706,9 @@ describe("ECSServiceHandler", () => {
         ...sampleConfig,
         resource_defaults: {
           "ecs-service": {
-            wait_for_stable: false,
-            stable_timeout_seconds: 300,
-            default_desired_count: 3,
+            waitForStable: false,
+            stableTimeoutSeconds: 300,
+            defaultDesiredCount: 3,
           },
         },
       };
@@ -459,7 +732,7 @@ describe("ECSServiceHandler", () => {
       const result = await handler.start();
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe("Service scaled to 3");
+      expect(result.message).toContain("Service scaled to 3");
 
       const updateCalls = ecsMock.commandCalls(UpdateServiceCommand);
       expect(updateCalls[0].args[0].input.desiredCount).toBe(3);

@@ -1,8 +1,6 @@
-version: "1.0"
+version: '1.0'
 environment: sss-lab
 
-# List of AWS regions to scan for resources
-# Lambda will discover and manage resources across all specified regions
 regions:
   - ap-southeast-1
   - ap-northeast-1
@@ -10,26 +8,26 @@ regions:
 discovery:
   method: tags
   tags:
-    lights-out:managed: "true"
+    lights-out:managed: 'true'
     lights-out:env: sss-lab
   resource_types:
     - ecs:service
     - rds:db
 
-resourceDefaults:
+resource_defaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
     defaultDesiredCount: 1
-  rds-instance:
+  rds-db:
     skipFinalSnapshot: true
     waitTimeout: 600
 
 schedules:
   default:
     timezone: Asia/Taipei
-    startTime: "09:00"
-    stopTime: "19:00"
+    startTime: '09:00'
+    stopTime: '19:00'
     activeDays:
       - MON
       - TUE
@@ -37,3 +35,13 @@ schedules:
       - THU
       - FRI
     holidays: []
+
+schedules_cron:
+  start:
+    expression: 0 1 ? * MON-FRI *  # 每週一至五 09:00 TPE (01:00 UTC)
+    description: Start resources at 09:00 Asia/Taipei (01:00 UTC)
+    enabled: true
+  stop:
+    expression: 0 11 ? * MON-FRI *  # 每週一至五 19:00 TPE (11:00 UTC)
+    description: Stop resources at 19:00 Asia/Taipei (11:00 UTC)
+    enabled: true

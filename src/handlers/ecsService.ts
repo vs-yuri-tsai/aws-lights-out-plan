@@ -11,12 +11,20 @@ import {
   waitUntilServicesStable,
   type Service,
 } from "@aws-sdk/client-ecs";
+import {
+  ApplicationAutoScalingClient,
+  DescribeScalableTargetsCommand,
+  RegisterScalableTargetCommand,
+  ServiceNamespace,
+} from "@aws-sdk/client-application-auto-scaling";
 import type { Logger } from "pino";
 import type {
   DiscoveredResource,
   Config,
   HandlerResult,
   ResourceHandler,
+  ECSStopBehavior,
+  ECSAutoScalingConfig,
 } from "@/types";
 import { setupLogger } from "@utils/logger";
 import { getResourceDefaults } from "@handlers/base";
@@ -30,6 +38,7 @@ import { getResourceDefaults } from "@handlers/base";
  */
 export class ECSServiceHandler implements ResourceHandler {
   private ecsClient: ECSClient;
+  private autoScalingClient: ApplicationAutoScalingClient;
   private clusterName: string;
   private serviceName: string;
   private logger: Logger;
@@ -49,6 +58,9 @@ export class ECSServiceHandler implements ResourceHandler {
 
     // Initialize ECS client with region
     this.ecsClient = new ECSClient({ region });
+
+    // Initialize Application Auto Scaling client with same region
+    this.autoScalingClient = new ApplicationAutoScalingClient({ region });
 
     // Extract cluster and service names from resource
     this.clusterName = (resource.metadata.cluster_name as string) ?? "default";
@@ -113,6 +125,120 @@ export class ECSServiceHandler implements ResourceHandler {
   }
 
   /**
+   * Detect if the ECS Service has Application Auto Scaling configured.
+   *
+   * @returns ScalableTarget configuration (minCapacity, maxCapacity) if found, otherwise null
+   */
+  private async detectAutoScaling(): Promise<{
+    minCapacity: number;
+    maxCapacity: number;
+  } | null> {
+    const resourceId = `service/${this.clusterName}/${this.serviceName}`;
+
+    try {
+      const response = await this.autoScalingClient.send(
+        new DescribeScalableTargetsCommand({
+          ServiceNamespace: ServiceNamespace.ECS,
+          ResourceIds: [resourceId],
+          ScalableDimension: "ecs:service:DesiredCount",
+        })
+      );
+
+      if (response.ScalableTargets && response.ScalableTargets.length > 0) {
+        const target = response.ScalableTargets[0];
+        this.logger.debug(
+          {
+            cluster: this.clusterName,
+            service: this.serviceName,
+            minCapacity: target.MinCapacity,
+            maxCapacity: target.MaxCapacity,
+          },
+          "Detected Auto Scaling configuration"
+        );
+
+        return {
+          minCapacity: target.MinCapacity!,
+          maxCapacity: target.MaxCapacity!,
+        };
+      }
+
+      this.logger.debug(
+        { cluster: this.clusterName, service: this.serviceName },
+        "No Auto Scaling detected"
+      );
+      return null;
+    } catch (error) {
+      // DescribeScalableTargets failed - assume no Auto Scaling
+      this.logger.warn(
+        {
+          cluster: this.clusterName,
+          service: this.serviceName,
+          error,
+        },
+        "Failed to detect Auto Scaling, assuming none"
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Manage service capacity via Application Auto Scaling.
+   *
+   * @param minCapacity - Minimum task count
+   * @param maxCapacity - Maximum task count
+   * @param desiredCount - Optional desired count (also updates ECS service if provided)
+   */
+  private async manageViaAutoScaling(
+    minCapacity: number,
+    maxCapacity: number,
+    desiredCount?: number
+  ): Promise<void> {
+    const resourceId = `service/${this.clusterName}/${this.serviceName}`;
+
+    this.logger.info(
+      {
+        cluster: this.clusterName,
+        service: this.serviceName,
+        minCapacity,
+        maxCapacity,
+        desiredCount,
+      },
+      "Managing service via Auto Scaling"
+    );
+
+    // 1. Register/update Scalable Target
+    await this.autoScalingClient.send(
+      new RegisterScalableTargetCommand({
+        ServiceNamespace: ServiceNamespace.ECS,
+        ResourceId: resourceId,
+        ScalableDimension: "ecs:service:DesiredCount",
+        MinCapacity: minCapacity,
+        MaxCapacity: maxCapacity,
+      })
+    );
+
+    // 2. If desiredCount specified, also update ECS Service
+    if (desiredCount !== undefined) {
+      await this.ecsClient.send(
+        new UpdateServiceCommand({
+          cluster: this.clusterName,
+          service: this.serviceName,
+          desiredCount: desiredCount,
+        })
+      );
+
+      this.logger.info(
+        {
+          cluster: this.clusterName,
+          service: this.serviceName,
+          desiredCount,
+        },
+        "Updated service desiredCount"
+      );
+    }
+  }
+
+  /**
    * Stop the ECS Service by setting desiredCount to 0.
    *
    * This operation is idempotent - if the service is already stopped,
@@ -122,8 +248,8 @@ export class ECSServiceHandler implements ResourceHandler {
    */
   async stop(): Promise<HandlerResult> {
     try {
-      // 1. Get current status
       const currentStatus = await this.getStatus();
+      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
 
       this.logger.info(
         {
@@ -134,58 +260,89 @@ export class ECSServiceHandler implements ResourceHandler {
         "Attempting to stop service"
       );
 
-      // 2. Idempotent check - already stopped
-      if (currentStatus.is_stopped) {
-        this.logger.info(
-          {
-            cluster: this.clusterName,
-            service: this.serviceName,
-          },
-          "Service already stopped"
-        );
+      // Detect if service has Auto Scaling
+      const autoScalingState = await this.detectAutoScaling();
+
+      // Path 1: Service has Auto Scaling
+      if (autoScalingState !== null) {
+        // Idempotent check
+        if (currentStatus.desired_count === 0) {
+          this.logger.info(
+            { cluster: this.clusterName, service: this.serviceName },
+            "Service already stopped"
+          );
+          return {
+            success: true,
+            action: "stop",
+            resourceType: this.resource.resourceType,
+            resourceId: this.resource.resourceId,
+            message: "Service already stopped",
+            previousState: currentStatus,
+          };
+        }
+
+        // Set MinCapacity=0, MaxCapacity=0 to force stop
+        await this.manageViaAutoScaling(0, 0, 0);
+
+        if (defaults.waitForStable) {
+          const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
+          await this.waitForStable(timeout);
+        }
+
         return {
           success: true,
           action: "stop",
           resourceType: this.resource.resourceType,
           resourceId: this.resource.resourceId,
-          message: "Service already stopped",
+          message: `Service stopped via Auto Scaling (was ${currentStatus.desired_count})`,
           previousState: currentStatus,
         };
       }
 
-      // 3. Update service to stop (desiredCount=0)
+      // Path 2: No Auto Scaling (Legacy Mode)
+      const stopBehavior = (defaults.stopBehavior as ECSStopBehavior) ?? {
+        mode: "scale_to_zero",
+      };
+
+      let targetCount: number;
+      switch (stopBehavior.mode) {
+        case "scale_to_zero":
+          targetCount = 0;
+          break;
+        case "reduce_by_count":
+          targetCount = Math.max(
+            0,
+            (currentStatus.desired_count as number) - (stopBehavior.reduceByCount ?? 1)
+          );
+          break;
+        case "reduce_to_count":
+          targetCount = stopBehavior.reduceToCount ?? 0;
+          break;
+        default:
+          targetCount = 0;
+      }
+
+      if (currentStatus.desired_count === targetCount) {
+        return {
+          success: true,
+          action: "stop",
+          resourceType: this.resource.resourceType,
+          resourceId: this.resource.resourceId,
+          message: `Service already at target count ${targetCount}`,
+          previousState: currentStatus,
+        };
+      }
+
       await this.ecsClient.send(
         new UpdateServiceCommand({
           cluster: this.clusterName,
           service: this.serviceName,
-          desiredCount: 0,
+          desiredCount: targetCount,
         })
       );
 
-      this.logger.info(
-        {
-          cluster: this.clusterName,
-          service: this.serviceName,
-          previous_count: currentStatus.desired_count,
-        },
-        "Updated service desiredCount to 0"
-      );
-
-      // 4. Wait for stable if configured
-      const defaults = getResourceDefaults(
-        this.config,
-        this.resource.resourceType
-      );
-      if (defaults.wait_for_stable) {
-        const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
-        this.logger.info(
-          {
-            cluster: this.clusterName,
-            service: this.serviceName,
-            timeout,
-          },
-          `Waiting for service to stabilize (timeout: ${timeout}s)`
-        );
+      if (defaults.waitForStable) {
+        const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
         await this.waitForStable(timeout);
       }
 
@@ -194,16 +351,12 @@ export class ECSServiceHandler implements ResourceHandler {
         action: "stop",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: `Service scaled to 0 (was ${currentStatus.desired_count})`,
+        message: `Service scaled to ${targetCount} (legacy mode, was ${currentStatus.desired_count})`,
         previousState: currentStatus,
       };
     } catch (error) {
       this.logger.error(
-        {
-          cluster: this.clusterName,
-          service: this.serviceName,
-          error,
-        },
+        { cluster: this.clusterName, service: this.serviceName, error },
         "Failed to stop service"
       );
       return {
@@ -228,35 +381,77 @@ export class ECSServiceHandler implements ResourceHandler {
    */
   async start(): Promise<HandlerResult> {
     try {
-      // 1. Get current status
       const currentStatus = await this.getStatus();
-
-      // 2. Get target desired count from config
-      const defaults = getResourceDefaults(
-        this.config,
-        this.resource.resourceType
-      );
-      const targetCount = (defaults.default_desired_count as number) ?? 1;
+      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
 
       this.logger.info(
         {
           cluster: this.clusterName,
           service: this.serviceName,
           current_desired_count: currentStatus.desired_count,
-          target_count: targetCount,
         },
         "Attempting to start service"
       );
 
-      // 3. Idempotent check - already at target count
-      if (currentStatus.desired_count === targetCount) {
-        this.logger.info(
-          {
-            cluster: this.clusterName,
-            service: this.serviceName,
-          },
-          `Service already at desired count ${targetCount}`
+      // Detect if service has Auto Scaling
+      const autoScalingState = await this.detectAutoScaling();
+
+      // Path 1: Service has Auto Scaling
+      if (autoScalingState !== null) {
+        // Require autoScaling config if Auto Scaling detected
+        const autoScalingConfig = defaults.autoScaling as ECSAutoScalingConfig | undefined;
+
+        if (!autoScalingConfig) {
+          throw new Error(
+            `Service has Auto Scaling but config lacks autoScaling settings. ` +
+            `Please add resource_defaults.ecs-service.autoScaling to config.`
+          );
+        }
+
+        const targetCount = autoScalingConfig.desiredCount;
+
+        // Idempotent check
+        if (currentStatus.desired_count === targetCount) {
+          this.logger.info(
+            { cluster: this.clusterName, service: this.serviceName },
+            `Service already at desired count ${targetCount}`
+          );
+          return {
+            success: true,
+            action: "start",
+            resourceType: this.resource.resourceType,
+            resourceId: this.resource.resourceId,
+            message: `Service already at desired count ${targetCount}`,
+            previousState: currentStatus,
+          };
+        }
+
+        // Set Auto Scaling min/max and desired count
+        await this.manageViaAutoScaling(
+          autoScalingConfig.minCapacity,
+          autoScalingConfig.maxCapacity,
+          targetCount
         );
+
+        if (defaults.waitForStable) {
+          const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
+          await this.waitForStable(timeout);
+        }
+
+        return {
+          success: true,
+          action: "start",
+          resourceType: this.resource.resourceType,
+          resourceId: this.resource.resourceId,
+          message: `Service started via Auto Scaling (min=${autoScalingConfig.minCapacity}, max=${autoScalingConfig.maxCapacity}, desired=${targetCount})`,
+          previousState: currentStatus,
+        };
+      }
+
+      // Path 2: No Auto Scaling (Legacy Mode)
+      const targetCount = (defaults.defaultDesiredCount as number) ?? 1;
+
+      if (currentStatus.desired_count === targetCount) {
         return {
           success: true,
           action: "start",
@@ -267,7 +462,6 @@ export class ECSServiceHandler implements ResourceHandler {
         };
       }
 
-      // 4. Update service to start
       await this.ecsClient.send(
         new UpdateServiceCommand({
           cluster: this.clusterName,
@@ -276,27 +470,8 @@ export class ECSServiceHandler implements ResourceHandler {
         })
       );
 
-      this.logger.info(
-        {
-          cluster: this.clusterName,
-          service: this.serviceName,
-          previous_count: currentStatus.desired_count,
-          target_count: targetCount,
-        },
-        `Updated service desiredCount to ${targetCount}`
-      );
-
-      // 5. Wait for stable if configured
-      if (defaults.wait_for_stable) {
-        const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
-        this.logger.info(
-          {
-            cluster: this.clusterName,
-            service: this.serviceName,
-            timeout,
-          },
-          `Waiting for service to stabilize (timeout: ${timeout}s)`
-        );
+      if (defaults.waitForStable) {
+        const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
         await this.waitForStable(timeout);
       }
 
@@ -305,16 +480,12 @@ export class ECSServiceHandler implements ResourceHandler {
         action: "start",
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: `Service scaled to ${targetCount}`,
+        message: `Service scaled to ${targetCount} (legacy mode)`,
         previousState: currentStatus,
       };
     } catch (error) {
       this.logger.error(
-        {
-          cluster: this.clusterName,
-          service: this.serviceName,
-          error,
-        },
+        { cluster: this.clusterName, service: this.serviceName, error },
         "Failed to start service"
       );
       return {

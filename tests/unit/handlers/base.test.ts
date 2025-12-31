@@ -18,8 +18,8 @@ describe("getResourceDefaults utility", () => {
       discovery: { method: "tags" },
       resource_defaults: {
         "test-resource": {
-          wait_for_stable: true,
-          stable_timeout_seconds: 300,
+          waitForStable: true,
+          stableTimeoutSeconds: 300,
         },
       },
     };
@@ -29,8 +29,8 @@ describe("getResourceDefaults utility", () => {
     const defaults = getResourceDefaults(sampleConfig, "test-resource");
 
     expect(defaults).toEqual({
-      wait_for_stable: true,
-      stable_timeout_seconds: 300,
+      waitForStable: true,
+      stableTimeoutSeconds: 300,
     });
   });
 
@@ -85,7 +85,7 @@ describe("HandlerResult interface", () => {
     const result: HandlerResult = {
       success: false,
       action: "stop",
-      resourceType: "rds-instance",
+      resourceType: "rds-db",
       resourceId: "my-database",
       message: "Stop operation failed",
       error: "DB instance not found",
@@ -125,13 +125,13 @@ describe("Config interface", () => {
       },
       resource_defaults: {
         "ecs-service": {
-          wait_for_stable: true,
-          stable_timeout_seconds: 300,
-          default_desired_count: 2,
+          waitForStable: true,
+          stableTimeoutSeconds: 300,
+          defaultDesiredCount: 2,
         },
-        "rds-instance": {
-          wait_for_stable: false,
-          stable_timeout_seconds: 600,
+        "rds-db": {
+          waitForStable: false,
+          stableTimeoutSeconds: 600,
         },
       },
     };
@@ -140,9 +140,9 @@ describe("Config interface", () => {
     expect(config.environment).toBe("production");
     expect(config.discovery.method).toBe("tags");
     expect(
-      config.resource_defaults?.["ecs-service"]?.default_desired_count
+      config.resource_defaults?.["ecs-service"]?.defaultDesiredCount
     ).toBe(2);
-    expect(config.resource_defaults?.["rds-instance"]?.wait_for_stable).toBe(
+    expect(config.resource_defaults?.["rds-db"]?.waitForStable).toBe(
       false
     );
   });

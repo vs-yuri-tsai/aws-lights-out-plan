@@ -8,7 +8,13 @@ importers:
 
   .:
     dependencies:
+      '@aws-sdk/client-application-auto-scaling':
+        specifier: ^3.954.0
+        version: 3.958.0
       '@aws-sdk/client-ecs':
+        specifier: ^3.954.0
+        version: 3.958.0
+      '@aws-sdk/client-lambda':
         specifier: ^3.954.0
         version: 3.958.0
       '@aws-sdk/client-rds':
@@ -57,9 +63,15 @@ importers:
       esbuild:
         specifier: ^0.27.2
         version: 0.27.2
+      prompts:
+        specifier: ^2.4.2
+        version: 2.4.2
       serverless:
         specifier: ^3.39.0
         version: 3.40.0(@types/node@25.0.3)
+      serverless-better-credentials:
+        specifier: ^2.0.1
+        version: 2.0.1(@serverless/utils@6.15.0(@types/node@25.0.3))(aws-sdk@2.1693.0)(serverless@3.40.0(@types/node@25.0.3))
       serverless-esbuild:
         specifier: ^1.57.0
         version: 1.57.0(esbuild@0.27.2)
@@ -100,6 +112,10 @@ packages:
 
   '@aws-sdk/client-api-gateway@3.958.0':
     resolution: {integrity: sha512-hahNXLahdVf5VbJXaV0BTbjheP2zJW7rYAliYMz8gFX4udcOXxzyQJ40h7KQyVFGlEckQ4U5NchMDgY0cw4/yQ==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/client-application-auto-scaling@3.958.0':
+    resolution: {integrity: sha512-L2gcy5pM6g+lBLZWBoZ0QvrfwaSUmqrx34VHIZlbKFIRclZCz0TCqMzV0EDa2SmnHBwGphnGWI5KPRDHwdouzg==}
     engines: {node: '>=18.0.0'}
 
   '@aws-sdk/client-cloudformation@3.958.0':
@@ -2193,6 +2209,10 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
+  kleur@3.0.3:
+    resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
+    engines: {node: '>=6'}
+
   lazystream@1.0.1:
     resolution: {integrity: sha512-b94GiNHQNy6JNTrt5w6zNyffMrNkXZb3KTkCZJb2V1xaEGCk093vkZ2jk3tpaeP33/OiXC+WvK9AxUebnf5nbw==}
     engines: {node: '>= 0.6.3'}
@@ -2574,6 +2594,10 @@ packages:
     resolution: {integrity: sha512-p/iXrPSVfnqPft24ZdNNLECw/UrtLTpT3jpAAMzl/o5/rDsGCPo3/CQS2611flL6LkoEJ3oQZw7C8Q80ZISXRQ==}
     engines: {node: '>= 0.8.0'}
 
+  prompts@2.4.2:
+    resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
+    engines: {node: '>= 6'}
+
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
@@ -2732,6 +2756,14 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  serverless-better-credentials@2.0.1:
+    resolution: {integrity: sha512-CKRb+zP8HwThk2nD1t7kNHXn2bTYuPqaGvOnJ+PQq65wvJrLXbid6zZeSeaN506VpUp7zkOXgH8Qs3XGtK8dVA==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      '@serverless/utils': ^6.0.2
+      aws-sdk: ^2.567.0
+      serverless: ^2 || ^3
+
   serverless-esbuild@1.57.0:
     resolution: {integrity: sha512-oKsqUkIPPE9hku81QhGi9p3Als6bmXKufCQeYjvjCT4rU3GDJ61WOG8psb8Ys6hw1vEiMbcUgnh+xLt1Scoaow==}
     engines: {node: '>=18.0.0'}
@@ -2805,6 +2837,9 @@ packages:
 
   sinon@18.0.1:
     resolution: {integrity: sha512-a2N2TDY1uGviajJ6r4D1CyRAkzE9NNVlYOV1wX5xQDuAk0ONgzgRl0EjCQuRCPxOwp13ghsMwt9Gdldujs39qw==}
+
+  sisteransi@1.0.5:
+    resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
@@ -3370,6 +3405,50 @@ snapshots:
       '@smithy/util-middleware': 4.2.7
       '@smithy/util-retry': 4.2.7
       '@smithy/util-stream': 4.5.8
+      '@smithy/util-utf8': 4.2.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws-sdk/client-application-auto-scaling@3.958.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.957.0
+      '@aws-sdk/credential-provider-node': 3.958.0
+      '@aws-sdk/middleware-host-header': 3.957.0
+      '@aws-sdk/middleware-logger': 3.957.0
+      '@aws-sdk/middleware-recursion-detection': 3.957.0
+      '@aws-sdk/middleware-user-agent': 3.957.0
+      '@aws-sdk/region-config-resolver': 3.957.0
+      '@aws-sdk/types': 3.957.0
+      '@aws-sdk/util-endpoints': 3.957.0
+      '@aws-sdk/util-user-agent-browser': 3.957.0
+      '@aws-sdk/util-user-agent-node': 3.957.0
+      '@smithy/config-resolver': 4.4.5
+      '@smithy/core': 3.20.0
+      '@smithy/fetch-http-handler': 5.3.8
+      '@smithy/hash-node': 4.2.7
+      '@smithy/invalid-dependency': 4.2.7
+      '@smithy/middleware-content-length': 4.2.7
+      '@smithy/middleware-endpoint': 4.4.1
+      '@smithy/middleware-retry': 4.4.17
+      '@smithy/middleware-serde': 4.2.8
+      '@smithy/middleware-stack': 4.2.7
+      '@smithy/node-config-provider': 4.3.7
+      '@smithy/node-http-handler': 4.4.7
+      '@smithy/protocol-http': 5.3.7
+      '@smithy/smithy-client': 4.10.2
+      '@smithy/types': 4.11.0
+      '@smithy/url-parser': 4.2.7
+      '@smithy/util-base64': 4.3.0
+      '@smithy/util-body-length-browser': 4.2.0
+      '@smithy/util-body-length-node': 4.2.1
+      '@smithy/util-defaults-mode-browser': 4.3.16
+      '@smithy/util-defaults-mode-node': 4.2.19
+      '@smithy/util-endpoints': 3.2.7
+      '@smithy/util-middleware': 4.2.7
+      '@smithy/util-retry': 4.2.7
       '@smithy/util-utf8': 4.2.0
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -6488,6 +6567,8 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
+  kleur@3.0.3: {}
+
   lazystream@1.0.1:
     dependencies:
       readable-stream: 2.3.8
@@ -6849,6 +6930,11 @@ snapshots:
 
   promise-queue@2.2.5: {}
 
+  prompts@2.4.2:
+    dependencies:
+      kleur: 3.0.3
+      sisteransi: 1.0.5
+
   proxy-from-env@1.1.0: {}
 
   pump@3.0.3:
@@ -7032,6 +7118,13 @@ snapshots:
 
   semver@7.7.3: {}
 
+  serverless-better-credentials@2.0.1(@serverless/utils@6.15.0(@types/node@25.0.3))(aws-sdk@2.1693.0)(serverless@3.40.0(@types/node@25.0.3)):
+    dependencies:
+      '@serverless/utils': 6.15.0(@types/node@25.0.3)
+      aws-sdk: 2.1693.0
+      open: 8.4.2
+      serverless: 3.40.0(@types/node@25.0.3)
+
   serverless-esbuild@1.57.0(esbuild@0.27.2):
     dependencies:
       '@effect/platform': 0.65.5(@effect/schema@0.73.4(effect@3.19.13))(effect@3.19.13)
@@ -7211,6 +7304,8 @@ snapshots:
       diff: 5.2.0
       nise: 6.1.1
       supports-color: 7.2.0
+
+  sisteransi@1.0.5: {}
 
   slash@3.0.0: {}
 

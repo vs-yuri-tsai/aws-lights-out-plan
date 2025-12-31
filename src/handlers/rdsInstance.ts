@@ -187,8 +187,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         this.config,
         this.resource.resourceType
       );
-      if (defaults.wait_for_stable) {
-        const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
+      if (defaults.waitForStable) {
+        const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
         this.logger.info(
           {
             db_instance: this.dbInstanceIdentifier,
@@ -308,8 +308,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         this.config,
         this.resource.resourceType
       );
-      if (defaults.wait_for_stable) {
-        const timeout = (defaults.stable_timeout_seconds as number) ?? 300;
+      if (defaults.waitForStable) {
+        const timeout = (defaults.stableTimeoutSeconds as number) ?? 300;
         this.logger.info(
           {
             db_instance: this.dbInstanceIdentifier,

@@ -1,0 +1,49 @@
+version: '1.0'
+environment: pg-development-airsync-dev
+
+regions:
+  - us-east-1
+  - ap-northeast-1
+
+discovery:
+  method: tags
+  tags:
+    lights-out:managed: 'true'
+  resource_types:
+    - ecs:service
+
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    autoScaling:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 3 
+    defaultDesiredCount: 3
+    stopBehavior:
+      mode: reduce_by_count
+      reduceByCount: 1
+
+schedules:
+  default:
+    timezone: Asia/Taipei
+    startTime: '08:00'
+    stopTime: '22:00'
+    activeDays:
+      - MON
+      - TUE
+      - WED
+      - THU
+      - FRI
+    holidays: []
+
+schedules_cron:
+  start:
+    expression: 0 0 ? * MON-FRI *  # 每週一至五 08:00 TPE (00:00 UTC)
+    description: Start resources at 08:00 Asia/Taipei (00:00 UTC)
+    enabled: true
+  stop:
+    expression: 0 14 ? * MON-FRI *  # 每週一至五 22:00 TPE (14:00 UTC)
+    description: Stop resources at 22:00 Asia/Taipei (14:00 UTC)
+    enabled: true

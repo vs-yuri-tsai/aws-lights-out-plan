@@ -115,7 +115,7 @@ describe("Lambda Handler (main)", () => {
           metadata: { cluster_name: "cluster" },
         },
         {
-          resourceType: "rds-instance",
+          resourceType: "rds-db",
           arn: "arn:aws:rds:us-east-1:123456:db:my-database",
           resourceId: "my-database",
           priority: 100,
@@ -139,7 +139,7 @@ describe("Lambda Handler (main)", () => {
       expect(body.discovered_count).toBe(2);
       expect(body.resources).toHaveLength(2);
       expect(body.resources[0].resource_type).toBe("ecs-service");
-      expect(body.resources[1].resource_type).toBe("rds-instance");
+      expect(body.resources[1].resource_type).toBe("rds-db");
       expect(body.request_id).toBe("test-request-id-123");
       expect(body.timestamp).toBeDefined();
 
@@ -180,7 +180,7 @@ describe("Lambda Handler (main)", () => {
           {
             success: true,
             action: "start",
-            resourceType: "rds-instance",
+            resourceType: "rds-db",
             resourceId: "my-database",
             message: "Started successfully",
           },
@@ -223,7 +223,7 @@ describe("Lambda Handler (main)", () => {
           {
             success: false,
             action: "start",
-            resourceType: "rds-instance",
+            resourceType: "rds-db",
             resourceId: "my-database",
             message: "Failed to start",
             error: "Database is in invalid state",
