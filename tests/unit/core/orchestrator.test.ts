@@ -567,4 +567,484 @@ describe("Orchestrator", () => {
       expect(result.failed).toBe(0);
     });
   });
+
+  describe("priority sorting", () => {
+    it("should sort resources by ascending priority for START action", async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c3/s3",
+          resourceId: "c3/s3",
+          priority: 100, // Highest priority value - should execute last
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c3" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10, // Lowest priority value - should execute first
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 50, // Middle priority value
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const executionOrder: string[] = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          start: vi.fn().mockImplementation(async () => {
+            executionOrder.push(resourceId);
+            return {
+              success: true,
+              action: "start",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Started",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("start");
+
+      // Verify execution order: priority 10 → 50 → 100
+      expect(executionOrder).toEqual(["c1/s1", "c2/s2", "c3/s3"]);
+    });
+
+    it("should sort resources by descending priority for STOP action", async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10, // Lowest priority value - should execute last
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 50, // Middle priority value
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c3/s3",
+          resourceId: "c3/s3",
+          priority: 100, // Highest priority value - should execute first
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c3" },
+        },
+      ];
+
+      const executionOrder: string[] = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          stop: vi.fn().mockImplementation(async () => {
+            executionOrder.push(resourceId);
+            return {
+              success: true,
+              action: "stop",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Stopped",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("stop");
+
+      // Verify execution order: priority 100 → 50 → 10
+      expect(executionOrder).toEqual(["c3/s3", "c2/s2", "c1/s1"]);
+    });
+
+    it("should NOT sort resources for STATUS action", async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c3/s3",
+          resourceId: "c3/s3",
+          priority: 100, // Unordered priority
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c3" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 50,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const executionOrder: string[] = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          getStatus: vi.fn().mockImplementation(async () => {
+            executionOrder.push(resourceId);
+            return {
+              desired_count: 1,
+              running_count: 1,
+              status: "ACTIVE",
+            };
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("status");
+
+      // Verify execution order preserves discovery order (no sorting)
+      expect(executionOrder).toEqual(["c3/s3", "c1/s1", "c2/s2"]);
+    });
+
+    it("should handle resources with same priority", async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 50, // Same priority
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 50, // Same priority
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c3/s3",
+          resourceId: "c3/s3",
+          priority: 10, // Lower priority - should execute first for START
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c3" },
+        },
+      ];
+
+      const executionOrder: string[] = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          start: vi.fn().mockImplementation(async () => {
+            executionOrder.push(resourceId);
+            return {
+              success: true,
+              action: "start",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Started",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("start");
+
+      // Verify priority 10 executes first, then both priority 50 (order within same priority is stable)
+      expect(executionOrder[0]).toBe("c3/s3");
+      expect(executionOrder.slice(1)).toEqual(
+        expect.arrayContaining(["c1/s1", "c2/s2"])
+      );
+    });
+  });
+
+  describe("execution strategies", () => {
+    it("should use grouped-parallel strategy by default", async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 20,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const mockHandler: Partial<ResourceHandler> = {
+        start: vi.fn().mockResolvedValue({
+          success: true,
+          action: "start",
+          resourceType: "ecs-service",
+          resourceId: "test",
+          message: "Started",
+        } as HandlerResult),
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+
+      const result = await orchestrator.run("start");
+
+      expect(result.total).toBe(2);
+      expect(result.succeeded).toBe(2);
+    });
+
+    it("should execute resources sequentially when strategy is 'sequential'", async () => {
+      const configSequential: Config = {
+        ...sampleConfig,
+        settings: {
+          execution_strategy: "sequential",
+        },
+      };
+
+      orchestrator = new Orchestrator(configSequential);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 10, // Same priority, but should still execute sequentially
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const executionOrder: string[] = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          start: vi.fn().mockImplementation(async () => {
+            executionOrder.push(resourceId);
+            // Simulate async delay to test sequential execution
+            await new Promise(resolve => setTimeout(resolve, 10));
+            return {
+              success: true,
+              action: "start",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Started",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("start");
+
+      // In sequential mode, execution order should be preserved
+      expect(executionOrder).toEqual(["c1/s1", "c2/s2"]);
+    });
+
+    it("should execute all resources in parallel when strategy is 'parallel'", async () => {
+      const configParallel: Config = {
+        ...sampleConfig,
+        settings: {
+          execution_strategy: "parallel",
+        },
+      };
+
+      orchestrator = new Orchestrator(configParallel);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10,
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s2",
+          resourceId: "c2/s2",
+          priority: 50, // Different priority, but should execute in parallel
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const startTimes: Record<string, number> = {};
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          start: vi.fn().mockImplementation(async () => {
+            startTimes[resourceId] = Date.now();
+            await new Promise(resolve => setTimeout(resolve, 10));
+            return {
+              success: true,
+              action: "start",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Started",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("start");
+
+      // In parallel mode, both should start at roughly the same time
+      const timeDiff = Math.abs(startTimes["c1/s1"] - startTimes["c2/s2"]);
+      expect(timeDiff).toBeLessThan(5); // Within 5ms means parallel
+    });
+
+    it("should execute grouped-parallel correctly", async () => {
+      const configGroupedParallel: Config = {
+        ...sampleConfig,
+        settings: {
+          execution_strategy: "grouped-parallel",
+        },
+      };
+
+      orchestrator = new Orchestrator(configGroupedParallel);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s1",
+          resourceId: "c1/s1",
+          priority: 10, // Group 1
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c1/s2",
+          resourceId: "c1/s2",
+          priority: 10, // Group 1 (same priority, should run in parallel)
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c1" },
+        },
+        {
+          resourceType: "ecs-service",
+          arn: "arn:aws:ecs:us-east-1:123456:service/c2/s1",
+          resourceId: "c2/s1",
+          priority: 50, // Group 2 (different priority, should run after group 1)
+          group: "default",
+          tags: {},
+          metadata: { cluster_name: "c2" },
+        },
+      ];
+
+      const executionLog: Array<{ resourceId: string; timestamp: number }> = [];
+
+      const mockHandlerFactory = (resourceId: string) =>
+        ({
+          start: vi.fn().mockImplementation(async () => {
+            executionLog.push({ resourceId, timestamp: Date.now() });
+            await new Promise(resolve => setTimeout(resolve, 20));
+            return {
+              success: true,
+              action: "start",
+              resourceType: "ecs-service",
+              resourceId,
+              message: "Started",
+            } as HandlerResult;
+          }),
+        }) as unknown as ResourceHandler;
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockImplementation((_, resource: DiscoveredResource) =>
+        mockHandlerFactory(resource.resourceId)
+      );
+
+      await orchestrator.run("start");
+
+      // Verify execution pattern
+      expect(executionLog).toHaveLength(3);
+
+      // Group 1 (p10) should start together
+      const group1Timestamps = executionLog
+        .filter(log => log.resourceId.startsWith("c1/"))
+        .map(log => log.timestamp);
+
+      const group1TimeDiff = Math.abs(group1Timestamps[0] - group1Timestamps[1]);
+      expect(group1TimeDiff).toBeLessThan(5); // Parallel within group
+
+      // Group 2 (p50) should start after Group 1
+      const group2Timestamp = executionLog.find(log => log.resourceId === "c2/s1")!.timestamp;
+      const group1MaxTimestamp = Math.max(...group1Timestamps);
+
+      expect(group2Timestamp).toBeGreaterThan(group1MaxTimestamp);
+    });
+  });
 });

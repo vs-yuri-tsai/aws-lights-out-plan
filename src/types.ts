@@ -10,6 +10,15 @@
 export type LambdaAction = "start" | "stop" | "status" | "discover";
 
 /**
+ * Execution strategy for resource operations.
+ *
+ * - sequential: Process resources one by one in priority order (safest, slowest)
+ * - parallel: Process all resources simultaneously, ignoring priority (fastest, riskiest)
+ * - grouped-parallel: Process same-priority resources in parallel, different priorities sequentially (balanced, recommended)
+ */
+export type ExecutionStrategy = "sequential" | "parallel" | "grouped-parallel";
+
+/**
  * Discovered resource from tag discovery.
  */
 export interface DiscoveredResource {
@@ -206,6 +215,7 @@ export interface Config {
   };
   settings?: {
     schedule_tag?: string;
+    execution_strategy?: ExecutionStrategy;
     [key: string]: unknown;
   };
   resource_defaults?: Record<string, Record<string, unknown>>;
