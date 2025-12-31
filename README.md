@@ -119,9 +119,7 @@ aws-lights-out-plan/
 ├── tests/                      # Vitest 測試
 ├── config/                     # SSM 配置範本
 ├── docs/
-│   ├── deployment-guide.md     # 部署指南
-│   ├── ssm-operations-guide.md # SSM 操作指南
-│   └── tagging-guide.md        # 標籤操作手冊
+│   └── deployment-guide.md     # 完整部署與操作手冊
 ├── scripts/                    # Helper scripts
 ├── serverless.yml              # Serverless Framework IaC
 ├── tsconfig.json               # TypeScript 配置 (strict mode)
@@ -163,61 +161,63 @@ aws ecs tag-resource \
          key=lights-out:priority,value=50
 ```
 
-詳見 [docs/tagging-guide.md](./docs/tagging-guide.md)
+詳見 [docs/deployment-guide.md - 標記 AWS 資源](./docs/deployment-guide.md#step-4-標記-aws-資源)
 
 ---
 
-## 🔧 本地測試與部署
+## 🔧 日常操作指令
 
-### 模擬 Lambda 執行
+本專案提供互動式 CLI，所有操作透過選單進行。
+
+### Lambda 操作（啟動/停止資源）
 
 ```bash
-# 本地測試（使用 Serverless Invoke Local）
-pnpm sls invoke local -f lights-out --data '{"action":"status"}'
+# 互動式選單：選擇環境和動作（start/stop/status/discover）
+npm run action
 
+# 執行流程：
+# 1. 選擇目標環境（airsync-dev 或 sss-lab）
+# 2. 選擇操作（Start/Stop/Status/Discover）
+# 3. 自動呼叫對應的 Lambda 函數
+```
+
+### SSM 配置管理
+
+```bash
+# 互動式選單：上傳或下載 SSM Parameter Store 配置
+npm run config
+
+# 執行流程：
+# 1. 選擇目標環境
+# 2. 選擇操作：
+#    - Upload: 部署本地 YAML 到 SSM Parameter Store
+#    - Retrieve: 從 SSM 下載當前配置
+```
+
+### 部署 Lambda
+
+```bash
+# 互動式選單：完整部署或僅更新 Lambda 程式碼
+npm run deploy
+
+# 執行流程：
+# 1. 選擇目標環境
+# 2. 選擇部署模式：
+#    - All: 完整 Serverless 部署（infrastructure + Lambda）
+#    - Lambda Only: 僅更新 Lambda 函數程式碼（快速部署）
+```
+
+### 開發測試
+
+```bash
 # 型別檢查
-pnpm type-check
+npm run type-check
 
-# 檢查打包大小（執行 serverless package 後）
-ls -lh .serverless/
-```
+# 執行測試
+npm test
 
-### 部署至 AWS
-
-```bash
-# 部署至 POC 環境
-pnpm deploy
-
-# 部署至生產環境
-pnpm deploy:prod
-
-# 查看 Lambda 日誌
-pnpm sls logs -f handler --tail --stage poc
-
-# 移除部署
-pnpm sls remove --stage poc
-```
-
-### 手動觸發 Lambda
-
-```bash
-# 查詢資源狀態
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"status"}' \
-  out.json && cat out.json
-
-# 停止資源
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"stop","dryRun":true}' \
-  out.json && cat out.json
-
-# 啟動資源
-aws lambda invoke \
-  --function-name lights-out-poc-handler \
-  --payload '{"action":"start","dryRun":false}' \
-  out.json && cat out.json
+# 測試覆蓋率
+npm run test:coverage
 ```
 
 ---
@@ -227,9 +227,8 @@ aws lambda invoke \
 - **[CLAUDE.md](./CLAUDE.md)** - AI Agent 專案規範（開始此處）
 - **[AGENTS.md](./AGENTS.md)** - 多 Agent 協作規範 + 技術規格
 - **[TASKS.md](./TASKS.md)** - Milestone 與任務追蹤
-- **[docs/deployment-guide.md](./docs/deployment-guide.md)** - 部署操作手冊
-- **[docs/tagging-guide.md](./docs/tagging-guide.md)** - 資源標籤指南
-- **[docs/ssm-operations-guide.md](./docs/ssm-operations-guide.md)** - SSM 操作指南
+- **[docs/deployment-guide.md](./docs/deployment-guide.md)** - 完整部署與操作手冊
+- **[config/sss-lab.yml](./config/sss-lab.yml)** - 配置範例（含詳細註解）
 
 ---
 

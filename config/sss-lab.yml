@@ -1,8 +1,10 @@
 version: '1.0'
 environment: sss-lab
+
 regions:
   - ap-southeast-1
   - ap-northeast-1
+
 discovery:
   method: tags
   tags:
@@ -11,6 +13,7 @@ discovery:
   resource_types:
     - ecs:service
     - rds:db
+
 resource_defaults:
   ecs-service:
     waitForStable: true
@@ -19,6 +22,7 @@ resource_defaults:
   rds-db:
     skipFinalSnapshot: true
     waitTimeout: 600
+
 schedules:
   default:
     timezone: Asia/Taipei
@@ -31,12 +35,13 @@ schedules:
       - THU
       - FRI
     holidays: []
+
 schedules_cron:
   start:
-    expression: 0 1 ? * MON-FRI *
+    expression: 0 1 ? * MON-FRI *  # 每週一至五 09:00 TPE (01:00 UTC)
     description: Start resources at 09:00 Asia/Taipei (01:00 UTC)
     enabled: true
   stop:
-    expression: 0 11 ? * MON-FRI *
+    expression: 0 11 ? * MON-FRI *  # 每週一至五 19:00 TPE (11:00 UTC)
     description: Stop resources at 19:00 Asia/Taipei (11:00 UTC)
     enabled: true

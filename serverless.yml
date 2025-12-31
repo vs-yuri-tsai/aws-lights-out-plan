@@ -93,10 +93,4 @@ plugins:
 
 # CloudFormation resources
 # NOTE: SSM Parameter is created manually due to CloudFormation Early Validation issues
-# Run this after deployment (or when config changes):
-#
-# Direct from YAML (requires js-yaml):
-# aws ssm put-parameter --name "/lights-out/config" --type "String" \
-#   --value "$(node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(JSON.stringify(yaml.load(fs.readFileSync('config/sss-lab.yml', 'utf8'))));")" \
-#   --description "Lights Out configuration for sss-lab" --region ap-southeast-1 --overwrite
 resources: {}

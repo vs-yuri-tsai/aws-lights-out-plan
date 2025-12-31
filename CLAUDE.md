@@ -115,17 +115,18 @@ EHOSTUNREACH 169.254.169.254:80
 Could not load credentials from any providers
 ```
 
-**Workaround：** 使用 `scripts/deploy-lambda.js` 直接透過 AWS SDK 部署
+**解決方案：** 使用互動式 CLI（自動處理 AWS credentials）
 
 ```bash
-# ❌ 不要用 serverless deploy (會失敗)
-# AWS_PROFILE=pg-development serverless deploy
+# ✅ 使用互動式 CLI（推薦）
+npm run deploy
+# 選擇環境 → 選擇部署模式
 
-# ✅ 使用 deploy script (直接 AWS SDK)
-pnpm airsync-dev:lambda
+# ❌ 不要直接用 serverless deploy (SSO 環境會失敗)
+# serverless deploy --stage pg-development-airsync-dev
 ```
 
-**首次部署例外：** IAM role 更新仍需要 `serverless deploy`（或手動在 Console 更新）
+**背景機制：** 互動式 CLI 使用 `serverless-better-credentials` plugin 正確處理 SSO credentials
 
 ### Issue #2: Config Schema 大小寫
 
@@ -171,5 +172,6 @@ aws lambda invoke \
 
 - [AGENTS.md](./AGENTS.md) — 多 Agent 協作 + 技術規格
 - [TASKS.md](./TASKS.md) — 任務追蹤
-- [docs/tagging-guide.md](./docs/tagging-guide.md) — 標籤操作指南
+- [docs/deployment-guide.md](./docs/deployment-guide.md) — 完整部署與操作手冊
+- [config/sss-lab.yml](./config/sss-lab.yml) — 配置範例（含詳細註解）
 - [serverless.yml](./serverless.yml) — Infrastructure as Code

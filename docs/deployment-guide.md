@@ -217,71 +217,105 @@ cat .serverless/cloudformation-template-update-stack.json | \
   jq '.Resources | to_entries[] | select(.key | contains("Lambda")) | {key:.key, runtime:.value.Properties.Runtime}'
 ```
 
-### Step 5: 執行部署
+### Step 5: 使用互動式 CLI 部署
+
+本專案提供互動式部署工具，簡化部署流程。
+
+#### 方式 1：完整部署（推薦首次部署）
 
 ```bash
-# 完整部署（包含 infrastructure）
-npx serverless deploy --stage sss-lab --verbose
+# 啟動互動式部署選單
+npm run deploy
+
+# 互動流程：
+# 1. 選擇目標環境（airsync-dev 或 sss-lab）
+# 2. 選擇 "All - Full Serverless deployment"
+# 3. 系統自動執行：
+#    - 生成 EventBridge cron 表達式
+#    - 執行 serverless deploy --verbose
 
 # 預期輸出：
-# ✔ Service deployed to stack lights-out-sss-lab (117s)
+# ✔ Service deployed to stack lights-out-{stage} (117s)
 # functions:
-#   lights-out: lights-out-sss-lab-handler (1.3 MB)
+#   handler: lights-out-{stage} (1.3 MB)
 ```
 
-**注意:**
-- 首次部署會建立 S3 Deployment Bucket
-- Lambda 函數名稱格式: `{service}-{stage}-{function}` = `lights-out-sss-lab-handler`
-- 如果覺得名稱冗長，可修改 `serverless.yml` 的 `functions` 名稱（但需重新部署）
-
-### Step 6: 手動創建 SSM Parameter
-
-部署成功後，**必須**手動創建 SSM Parameter（CloudFormation 不包含此資源）。
-
-#### 使用 npm script（推薦）
+#### 方式 2：僅更新 Lambda 程式碼（快速更新）
 
 ```bash
-# 直接從 YAML 創建/更新 SSM Parameter
-pnpm run config:update
+# 啟動互動式部署選單
+npm run deploy
+
+# 互動流程：
+# 1. 選擇目標環境
+# 2. 選擇 "Lambda Only - Quick Lambda function code update"
+# 3. 系統自動執行 serverless deploy function -f handler
 ```
 
-#### 手動指令（了解底層機制）
+**部署完成後檢查項目:**
 
 ```bash
-# 方法 1: 直接從 YAML 轉換並創建
-aws ssm put-parameter \
-  --name "/lights-out/config" \
-  --type "String" \
-  --value "$(node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(JSON.stringify(yaml.load(fs.readFileSync('config/sss-lab.yml', 'utf8'))));")" \
-  --description "Lights Out configuration for sss-lab" \
-  --region ap-southeast-1 \
-  --overwrite
+# 檢查 Lambda 函數
+aws lambda get-function \
+  --function-name lights-out-{stage} \
+  --region {region}
+
+# 檢查 CloudFormation Stack
+aws cloudformation describe-stacks \
+  --stack-name lights-out-{stage} \
+  --region {region}
+```
+
+### Step 6: 部署 SSM Parameter Store 配置
+
+部署成功後，使用互動式工具上傳配置到 SSM Parameter Store。
+
+#### 使用互動式 CLI（推薦）
+
+```bash
+# 啟動配置管理選單
+npm run config
+
+# 互動流程：
+# 1. 選擇目標環境（airsync-dev 或 sss-lab）
+# 2. 選擇 "Upload - Deploy YAML config to SSM Parameter Store"
+# 3. 系統自動從對應的 YAML 檔案讀取並上傳
 
 # 預期輸出：
-# {
-#     "Version": 1,
-#     "Tier": "Standard"
-# }
+# ✅ SSM Parameter updated: /lights-out/{stage}/config
+# Version: 2
 ```
 
-**注意事項:**
-- ❌ 不能同時使用 `--tags` 和 `--overwrite`
-- ✅ Tags 可以後續用 `add-tags-to-resource` 加入
-- ✅ 使用 `--overwrite` 可以更新現有 Parameter
+#### 手動指令（進階使用）
+
+```bash
+# 僅在需要手動控制時使用
+aws ssm put-parameter \
+  --name "/lights-out/{stage}/config" \
+  --type "String" \
+  --value "$(node -e "const yaml = require('js-yaml'); const fs = require('fs'); console.log(JSON.stringify(yaml.load(fs.readFileSync('config/{stage}.yml', 'utf8'))));")" \
+  --description "Lights Out configuration for {stage}" \
+  --region {region} \
+  --overwrite
+```
 
 #### 驗證 SSM Parameter
 
 ```bash
-# 檢查 Parameter 是否存在
+# 使用互動式 CLI 下載並查看當前配置
+npm run config
+# 選擇環境 → 選擇 "Retrieve - Fetch current config from SSM"
+
+# 或使用 AWS CLI 手動查看
 aws ssm get-parameter \
-  --name "/lights-out/config" \
-  --region ap-southeast-1 \
+  --name "/lights-out/{stage}/config" \
+  --region {region} \
   --query 'Parameter.{Name:Name,Type:Type,Version:Version,LastModified:LastModifiedDate}'
 
 # 查看 Parameter 內容（格式化）
 aws ssm get-parameter \
-  --name "/lights-out/config" \
-  --region ap-southeast-1 \
+  --name "/lights-out/{stage}/config" \
+  --region {region} \
   --query 'Parameter.Value' \
   --output text | jq .
 ```
@@ -318,36 +352,52 @@ aws events list-rules \
 
 #### 7.4 測試 Lambda 函數
 
-**創建測試 payloads:**
+**使用互動式 CLI（推薦）:**
 
 ```bash
-# 創建測試檔案
-echo '{"action":"discover"}' > payload-discover.json
-echo '{"action":"status"}' > payload-status.json
-echo '{"action":"stop","dryRun":true}' > payload-stop-dry.json
-echo '{"action":"start","dryRun":true}' > payload-start-dry.json
-```
+# 啟動 Lambda 操作選單
+npm run action
 
-**執行測試:**
+# 互動流程：
+# 1. 選擇目標環境（airsync-dev 或 sss-lab）
+# 2. 選擇操作：
+#    - Discover: 發現帶有 lights-out tags 的資源
+#    - Status: 檢查當前資源狀態
+#    - Start: 啟動所有管理的資源
+#    - Stop: 停止所有管理的資源
 
-```bash
-# 測試 discover action
-aws lambda invoke \
-  --function-name lights-out-sss-lab-handler \
-  --payload "$(echo '{"action":"discover"}' | base64)" \
-  --region ap-southeast-1 \
-  out.json && cat out.json | jq .
-
-# 預期輸出：
+# 預期輸出範例（Discover）：
 # {
-#   "statusCode": 200,
-#   "body": "{\"action\":\"discover\",\"discovered_count\":0,\"resources\":[],\"timestamp\":\"2025-12-24T08:55:01.011Z\"}"
+#   "action": "discover",
+#   "discovered_count": 2,
+#   "resources": [...]
 # }
 ```
 
+**使用 AWS CLI（進階）:**
+
+```bash
+# 手動呼叫 Lambda（需要 AWS CLI v2）
+aws lambda invoke \
+  --function-name lights-out-{stage} \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"action":"discover"}' \
+  --region {region} \
+  out.json && cat out.json | jq .
+
+# 或使用 file:// 協定
+echo '{"action":"status"}' > payload.json
+aws lambda invoke \
+  --function-name lights-out-{stage} \
+  --payload file://payload.json \
+  --region {region} \
+  out.json
+```
+
 **注意:**
+- ✅ 使用互動式 CLI 會自動處理所有參數
 - ✅ `discovered_count: 0` 是正常的（尚未標記任何資源）
-- ❌ 不能直接使用 `--payload '{"action":"discover"}'`（需要 file:// 或 base64）
+- ❌ AWS CLI v1 需要 base64 編碼 payload
 
 #### 7.5 查看 Lambda 日誌
 
@@ -738,39 +788,28 @@ Resource:
 
 **解決方法:**
 
-為資源加上必要的 tags：
+參考上方 "Step 4: 標記 AWS 資源" 章節，為資源加上必要的 tags。
 
-**ECS Service:**
-```bash
-aws ecs tag-resource \
-  --resource-arn arn:aws:ecs:ap-southeast-1:ACCOUNT_ID:service/cluster/service \
-  --tags key=lights-out:managed,value=true \
-        key=lights-out:env,value=sss-lab \
-        key=lights-out:priority,value=100 \
-  --region ap-southeast-1
-```
+**常見原因排查:**
 
-**RDS Instance:**
-```bash
-aws rds add-tags-to-resource \
-  --resource-name arn:aws:rds:ap-southeast-1:ACCOUNT_ID:db:instance \
-  --tags Key=lights-out:managed,Value=true \
-         Key=lights-out:env,Value=sss-lab \
-         Key=lights-out:priority,Value=100 \
-  --region ap-southeast-1
-```
+1. **標籤拼寫錯誤** — `lights-out:managed` 不是 `lightsout:managed`
+2. **env/project 標籤不匹配** — 配置檔案中的 `discovery.tags` 必須與實際資源 tag 一致
+3. **資源類型未設定** — 配置檔案的 `discovery.resource_types` 要包含該資源類型
+4. **IAM 權限不足** — Lambda 需要 `tag:GetResources` 權限
+5. **Region 不匹配** — 確認配置檔案的 `regions` 包含資源所在 region
 
 **驗證:**
 ```bash
-# 重新執行 discover
-aws lambda invoke \
-  --function-name lights-out-sss-lab-handler \
-  --payload file://payload-discover.json \
-  --region ap-southeast-1 \
-  out.json && cat out.json | jq .
-```
+# 使用互動式 CLI 重新 discover
+npm run action
+# 選擇環境 → 選擇 "Discover"
 
-參考 [tagging-guide.md](./tagging-guide.md) 了解完整標籤規範。
+# 查看詳細日誌
+aws logs tail /aws/lambda/lights-out-{stage} \
+  --region {region} \
+  --since 5m \
+  --format short
+```
 
 ---
 
@@ -783,56 +822,53 @@ aws lambda invoke \
 vim src/index.ts
 
 # 2. 型別檢查
-pnpm run type-check
+npm run type-check
 
-# 3. 快速部署（僅更新函數程式碼，約 10 秒）
-npx serverless deploy function -f lights-out --stage sss-lab
-
-# 或完整部署（包含 infrastructure 變更，約 2 分鐘）
-npx serverless deploy --stage sss-lab
+# 3. 使用互動式 CLI 部署
+npm run deploy
+# 選擇環境 → 選擇 "Lambda Only - Quick update" (約 10 秒)
+# 或選擇 "All - Full deployment" (約 2 分鐘，包含 infrastructure)
 ```
 
 ### 更新配置
 
 ```bash
 # 1. 修改配置檔案
-vim config/sss-lab.yml
+vim config/{stage}.yml
+# 或 vim config/pg-development/airsync-dev.yml
 
-# 2. 更新 SSM Parameter
-pnpm run config:update
+# 2. 使用互動式 CLI 上傳配置
+npm run config
+# 選擇環境 → 選擇 "Upload - Deploy YAML config to SSM"
 
-# 3. 驗證更新
-aws ssm get-parameter \
-  --name "/lights-out/config" \
-  --region ap-southeast-1 \
-  --query 'Parameter.{Version:Version,LastModified:LastModifiedDate}'
+# 3. 驗證更新（可選）
+npm run config
+# 選擇環境 → 選擇 "Retrieve - Fetch current config"
 
 # 4. 測試 Lambda（會自動讀取新配置）
-aws lambda invoke \
-  --function-name lights-out-sss-lab-handler \
-  --payload file://payload-discover.json \
-  --region ap-southeast-1 \
-  out.json && cat out.json | jq .
+npm run action
+# 選擇環境 → 選擇 "Discover" 或 "Status"
 ```
 
 **注意:** Lambda 會在每次執行時從 SSM Parameter 讀取最新配置，無需重新部署 Lambda。
 
 ### 更新 EventBridge 排程
 
-直接修改 `serverless.yml` 中的 `events.schedule` 配置：
-
-```yaml
-events:
-  - schedule:
-      rate: cron(0 2 ? * MON-FRI *)  # 修改為 10:00 TPE (02:00 UTC)
-      input:
-        action: start
-```
-
-重新部署：
+排程配置來自各環境的 YAML 檔案，修改後需完整部署：
 
 ```bash
-npx serverless deploy --stage sss-lab
+# 1. 修改配置檔案中的排程
+vim config/{stage}.yml
+
+# 2. 完整部署（會重新生成 cron 表達式並更新 EventBridge）
+npm run deploy
+# 選擇環境 → 選擇 "All - Full deployment"
+
+# 3. 驗證新排程
+aws events list-rules \
+  --name-prefix lights-out-{stage} \
+  --region {region} \
+  --query 'Rules[].{Name:Name,Schedule:ScheduleExpression}'
 ```
 
 ---
@@ -956,6 +992,236 @@ aws cloudwatch put-metric-alarm \
   --alarm-actions arn:aws:sns:ap-southeast-1:ACCOUNT_ID:your-sns-topic \
   --region ap-southeast-1
 ```
+
+---
+
+## 新增專案到多專案模式
+
+本專案支援在同一 AWS 帳號部署多個獨立的 Lambda 函數，每個專案有自己的配置和排程。
+
+### 步驟 1: 建立配置檔案
+
+```bash
+# 建立新專案配置目錄（如果需要）
+mkdir -p config/pg-development
+
+# 複製範例配置
+cp config/pg-development/airsync-dev.yml config/pg-development/new-service-dev.yml
+
+# 編輯配置
+vim config/pg-development/new-service-dev.yml
+```
+
+### 步驟 2: 建立 target 參數檔案
+
+```bash
+# 建立 scripts/arguments/new-service-dev.json
+cat > scripts/arguments/new-service-dev.json <<'EOF'
+{
+  "scope": "project",
+  "region": "us-east-1",
+  "stage": "pg-development-new-service-dev",
+  "function-name": "lights-out-pg-development-new-service-dev",
+  "config": {
+    "name": "/lights-out/pg-development-new-service-dev/config",
+    "path": "config/pg-development/new-service-dev.yml",
+    "description": "Lights Out configuration for new-service-dev project"
+  }
+}
+EOF
+```
+
+**參數說明:**
+- `scope`: `"project"` (專案 scope) 或 `"aws-account"` (帳號 scope)
+- `region`: Lambda 部署的 AWS region
+- `stage`: Serverless Framework stage 名稱
+- `function-name`: Lambda 函數名稱
+- `config.name`: SSM Parameter Store 路徑
+- `config.path`: 本地 YAML 配置檔案路徑
+
+### 步驟 3: 更新 serverless.yml
+
+在 `custom.resolveConfigPath` 中新增映射：
+
+```yaml
+custom:
+  resolveConfigPath:
+    pg-development-airsync-dev: pg-development/airsync-dev.yml
+    pg-development-new-service-dev: pg-development/new-service-dev.yml  # 新增
+```
+
+### 步驟 4: 標記 AWS 資源
+
+所有需要管理的資源**必須**具備以下標籤。詳細說明請參考本文 "部署前驗證 → Step 4: 標記 AWS 資源" 章節。
+
+```bash
+# 多專案模式標籤範例
+aws ecs tag-resource \
+  --resource-arn arn:aws:ecs:{region}:ACCOUNT:service/CLUSTER/SERVICE \
+  --tags \
+    Key=lights-out:managed,Value=true \
+    Key=lights-out:project,Value=new-service-dev \
+    Key=lights-out:priority,Value=50 \
+  --region {region}
+```
+
+### 步驟 5: 使用互動式 CLI 部署
+
+```bash
+# 部署 Lambda
+npm run deploy
+# 選擇 "new-service-dev ({region})" → 選擇 "All"
+
+# 上傳配置到 SSM
+npm run config
+# 選擇 "new-service-dev ({region})" → 選擇 "Upload"
+
+# 驗證部署
+npm run action
+# 選擇 "new-service-dev ({region})" → 選擇 "Discover"
+```
+
+---
+
+## ECS Auto Scaling 配置指南
+
+### 何時需要配置 autoScaling？
+
+如果 ECS Service 已配置 Application Auto Scaling，必須在配置檔案中新增 `autoScaling` 欄位。
+
+**檢查方式:**
+
+```bash
+# 檢查 Service 是否有 Auto Scaling
+aws application-autoscaling describe-scalable-targets \
+  --service-namespace ecs \
+  --resource-ids service/{cluster-name}/{service-name} \
+  --scalable-dimension ecs:service:DesiredCount \
+  --region {region}
+```
+
+如果回傳結果有 `ScalableTargets`，表示 Service 有 Auto Scaling。
+
+### autoScaling vs defaultDesiredCount 優先級
+
+**運作邏輯:**
+
+1. **Runtime 偵測**: Lambda 執行時會先呼叫 `DescribeScalableTargets` 偵測 Service 是否有 Auto Scaling
+2. **有 Auto Scaling**: 使用 `autoScaling` 配置（如果缺少會拋出錯誤）
+3. **無 Auto Scaling**: 使用 `defaultDesiredCount` + `stopBehavior`
+
+**範例配置（同時提供兩者）:**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    # Auto Scaling mode（有 Auto Scaling 時使用）
+    autoScaling:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 3
+
+    # Legacy mode（無 Auto Scaling 時使用）
+    defaultDesiredCount: 1
+    stopBehavior:
+      mode: scale_to_zero
+```
+
+這樣配置的好處：
+- 有 Auto Scaling 的 Service 使用 `autoScaling` 配置
+- 無 Auto Scaling 的 Service 使用 `defaultDesiredCount`
+- 同一個 Lambda 可以管理混合模式的 Services
+
+### 遷移現有配置到 Auto Scaling 模式
+
+**步驟 1: 檢查現有 Auto Scaling 設定**
+
+```bash
+aws application-autoscaling describe-scalable-targets \
+  --service-namespace ecs \
+  --resource-ids service/{cluster}/{service} \
+  --scalable-dimension ecs:service:DesiredCount \
+  --region {region} \
+  --query 'ScalableTargets[0].{Min:MinCapacity,Max:MaxCapacity}'
+```
+
+**步驟 2: 更新配置檔案**
+
+```yaml
+resource_defaults:
+  ecs-service:
+    autoScaling:
+      minCapacity: 2      # 從步驟 1 取得
+      maxCapacity: 6      # 從步驟 1 取得
+      desiredCount: 3     # 期望的啟動數量
+```
+
+**步驟 3: 上傳配置**
+
+```bash
+# 使用互動式 CLI 上傳配置
+npm run config
+# 選擇對應環境 → 選擇 "Upload"
+```
+
+**步驟 4: 驗證**
+
+```bash
+# 測試 START 操作
+npm run action
+# 選擇環境 → 選擇 "Start"
+
+# 檢查 CloudWatch Logs
+aws logs tail /aws/lambda/lights-out-{stage} \
+  --region {region} \
+  --since 5m \
+  --filter-pattern "Auto Scaling"
+
+# 應顯示：
+# "Detected Auto Scaling configuration"
+# "Managing service via Auto Scaling"
+# "Service started via Auto Scaling (min=2, max=6, desired=3)"
+```
+
+### stopBehavior 模式說明
+
+僅在**無 Auto Scaling** 的 Service 使用，支援三種模式：
+
+#### 1. scale_to_zero（預設）
+
+完全關閉服務，設定 desiredCount 為 0。
+
+```yaml
+stopBehavior:
+  mode: scale_to_zero
+```
+
+#### 2. reduce_by_count（逐步驗證模式）
+
+每次執行減少指定數量，適合分階段驗證影響。
+
+```yaml
+stopBehavior:
+  mode: reduce_by_count
+  reduceByCount: 1  # 每次減少 1 個 task
+```
+
+**範例:** 如果服務當前 desiredCount 為 3
+- 第一次執行 stop：3 → 2
+- 第二次執行 stop：2 → 1
+- 第三次執行 stop：1 → 0
+
+#### 3. reduce_to_count（固定目標模式）
+
+設定為固定數量，保留最小運行實例。
+
+```yaml
+stopBehavior:
+  mode: reduce_to_count
+  reduceToCount: 1  # 停止時保留 1 個 task
+```
+
+**使用場景:** 需要保留一個實例處理背景任務或監控。
 
 ---
 
@@ -1111,11 +1377,106 @@ aws events enable-rule --name lights-out-sss-lab-stop --region ap-southeast-1
 
 ---
 
+## SSM Parameter Store 操作
+
+### 配置工作流程
+
+```mermaid
+graph LR
+    A[開發者建立 YAML 配置] --> B[上傳到 SSM Parameter Store]
+    B --> C[為資源打上 Tag]
+    C --> D[EventBridge 定時觸發 Lambda]
+    D --> E[Lambda 從 SSM 讀取配置]
+    E --> F[根據配置發現資源]
+    F --> G[執行 start/stop 操作]
+```
+
+**關鍵點：**
+- 配置改變無需重新部署 Lambda（熱更新）
+- Lambda 啟動時才讀取 SSM，5 分鐘內用 cache
+- 多環境共用同一個 Lambda，靠 SSM 參數區分
+
+### 上傳配置到 SSM
+
+```bash
+# 使用互動式 CLI（推薦）
+npm run config
+# 選擇環境 → 選擇 "Upload - Deploy YAML config to SSM"
+
+# 預期輸出：
+# ✅ SSM Parameter updated: /lights-out/{stage}/config
+# Version: 2
+```
+
+### 下載當前配置
+
+```bash
+# 使用互動式 CLI
+npm run config
+# 選擇環境 → 選擇 "Retrieve - Fetch current config from SSM"
+
+# 或使用 AWS CLI
+aws ssm get-parameter \
+  --name "/lights-out/{stage}/config" \
+  --region {region} \
+  --query 'Parameter.Value' \
+  --output text | jq .
+```
+
+### 查看配置版本歷史
+
+```bash
+# 列出所有版本
+aws ssm get-parameter-history \
+  --name "/lights-out/{stage}/config" \
+  --region {region} \
+  --query 'Parameters[*].{Version:Version,LastModified:LastModifiedDate,ModifiedBy:LastModifiedUser}' \
+  --output table
+
+# 回滾到特定版本
+aws ssm get-parameter \
+  --name "/lights-out/{stage}/config:{version}" \
+  --region {region}
+```
+
+### 配置更新最佳實踐
+
+1. **修改前先備份**
+   ```bash
+   # 下載當前配置
+   npm run config
+   # 選擇 "Retrieve" → 複製輸出內容備份
+   ```
+
+2. **本地驗證 YAML 格式**
+   ```bash
+   # 使用 Python 驗證
+   python3 -c "import yaml; yaml.safe_load(open('config/{stage}.yml'))"
+
+   # 或使用 yamllint
+   yamllint config/{stage}.yml
+   ```
+
+3. **上傳配置**
+   ```bash
+   npm run config
+   # 選擇 "Upload"
+   ```
+
+4. **驗證配置生效**
+   ```bash
+   # 測試 discover action
+   npm run action
+   # 選擇環境 → 選擇 "Discover"
+   ```
+
+---
+
 ## 相關文件
 
 - [CLAUDE.md](../CLAUDE.md) - 專案架構與規範
-- [tagging-guide.md](./tagging-guide.md) - 資源標籤操作指南
-- [config/README.md](../config/README.md) - 配置檔案說明
+- [config/sss-lab.yml](../config/sss-lab.yml) - sss-lab 配置範例（含詳細註解）
+- [config/pg-development/airsync-dev.yml](../config/pg-development/airsync-dev.yml) - airsync-dev 配置範例
 - [serverless.yml](../serverless.yml) - Infrastructure as Code
 
 ---
