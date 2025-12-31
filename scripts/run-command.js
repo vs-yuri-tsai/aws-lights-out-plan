@@ -105,6 +105,42 @@ function main() {
     // Load project arguments
     const projectArgs = loadProjectArgs(params.project);
 
+    // Set AWS credentials environment variables
+    const env = { ...process.env };
+
+    // CRITICAL: Clear all AWS credentials to prevent conflicts with terminal env vars
+    delete env.AWS_PROFILE;
+    delete env.AWS_ACCESS_KEY_ID;
+    delete env.AWS_SECRET_ACCESS_KEY;
+    delete env.AWS_SESSION_TOKEN;
+
+    if (projectArgs.profile) {
+      console.log(`🔑 Using AWS profile: ${projectArgs.profile}`);
+
+      try {
+        // Export SSO credentials as environment variables (most reliable method)
+        const credentialsJson = execSync(
+          `aws configure export-credentials --profile ${projectArgs.profile} --format env-no-export`,
+          { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+
+        // Parse and set credentials as environment variables
+        credentialsJson.trim().split('\n').forEach(line => {
+          const [key, value] = line.split('=');
+          if (key && value) {
+            env[key] = value;
+          }
+        });
+
+        console.log('✅ SSO credentials exported successfully');
+      } catch (error) {
+        // Fallback to AWS_PROFILE if export-credentials fails
+        console.warn('⚠️  Could not export SSO credentials, falling back to AWS_PROFILE');
+        console.warn('   If operation fails, run: aws sso login --profile ' + projectArgs.profile);
+        env.AWS_PROFILE = projectArgs.profile;
+      }
+    }
+
     // Build and execute command
     const extraArgs = {
       action: params.action,
@@ -115,8 +151,8 @@ function main() {
     console.log(`🚀 Executing: ${params.script}`);
     console.log(`📦 Project: ${params.project}\n`);
 
-    // Execute the command and inherit stdio
-    execSync(command, { stdio: 'inherit' });
+    // Execute the command with clean credentials environment
+    execSync(command, { stdio: 'inherit', env });
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

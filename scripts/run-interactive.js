@@ -174,21 +174,60 @@ async function main() {
       const argFilePath = path.join(__dirname, 'arguments', `${projectName}.json`);
       const projectArgs = JSON.parse(fs.readFileSync(argFilePath, 'utf8'));
 
+      // Set AWS credentials environment variables
+      const env = { ...process.env };
+
+      // CRITICAL: Clear all AWS credentials to prevent conflicts with terminal env vars
+      delete env.AWS_PROFILE;
+      delete env.AWS_ACCESS_KEY_ID;
+      delete env.AWS_SECRET_ACCESS_KEY;
+      delete env.AWS_SESSION_TOKEN;
+
+      if (projectArgs.profile) {
+        console.log(`🔑 Using AWS profile: ${projectArgs.profile}`);
+
+        try {
+          // Export SSO credentials as environment variables (most reliable method)
+          // This bypasses serverless-better-credentials issues with SSO
+          const credentialsJson = execSync(
+            `aws configure export-credentials --profile ${projectArgs.profile} --format env-no-export`,
+            { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+          );
+
+          // Parse and set credentials as environment variables
+          credentialsJson.trim().split('\n').forEach(line => {
+            const [key, value] = line.split('=');
+            if (key && value) {
+              env[key] = value;
+            }
+          });
+
+          console.log('✅ SSO credentials exported successfully');
+        } catch (error) {
+          // Fallback to AWS_PROFILE if export-credentials fails
+          console.warn('⚠️  Could not export SSO credentials, falling back to AWS_PROFILE');
+          console.warn('   If deployment fails, run: aws sso login --profile ' + projectArgs.profile);
+          env.AWS_PROFILE = projectArgs.profile;
+        }
+      }
+
       if (selectedValue === 'all') {
         // Full Serverless deployment
         const configPath = projectArgs.config?.path;
         const region = projectArgs.region;
         const stage = projectArgs.stage;
 
+        // Profile is set via env.AWS_PROFILE (see above), no CLI parameter needed
         const command = `node scripts/generate-cron.js --config ${configPath} && serverless deploy --region ${region} --stage ${stage} --verbose`;
-        execSync(command, { stdio: 'inherit' });
+        execSync(command, { stdio: 'inherit', env });
       } else if (selectedValue === 'lambda-function') {
         // Lambda-only deployment
         const region = projectArgs.region;
         const stage = projectArgs.stage;
 
+        // Profile is set via env.AWS_PROFILE (see above), no CLI parameter needed
         const command = `serverless deploy function -f handler --region ${region} --stage ${stage} --verbose`;
-        execSync(command, { stdio: 'inherit' });
+        execSync(command, { stdio: 'inherit', env });
       }
       return;
     }

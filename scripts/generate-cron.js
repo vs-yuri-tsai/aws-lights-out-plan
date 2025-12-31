@@ -261,7 +261,7 @@ function generateCronExpression(utcHour, utcMinute, activeDays) {
  * Generate cron configuration object
  */
 function generateCronConfig(schedules) {
-  const { timezone, startTime, stopTime, activeDays } = schedules.default;
+  const { timezone, startTime, stopTime, activeDays, enabled } = schedules.default;
 
   // Convert times to UTC
   const startUTC = convertToUTC(startTime, timezone);
@@ -275,12 +275,12 @@ function generateCronConfig(schedules) {
     start: {
       expression: startCron,
       description: `Start resources at ${startTime} ${timezone} (${String(startUTC.hour).padStart(2, '0')}:${String(startUTC.minute).padStart(2, '0')} UTC)`,
-      enabled: true,
+      enabled,
     },
     stop: {
       expression: stopCron,
       description: `Stop resources at ${stopTime} ${timezone} (${String(stopUTC.hour).padStart(2, '0')}:${String(stopUTC.minute).padStart(2, '0')} UTC)`,
-      enabled: true,
+      enabled,
     },
   };
 }

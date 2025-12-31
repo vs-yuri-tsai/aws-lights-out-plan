@@ -82,62 +82,78 @@ lights-out:priority = 100    # 數字越小越優先（啟動先/關閉後）
 
 **Why:** 避免使用過時的配置格式或 API（如 ESLint v9 flat config、Husky v9 移除 `husky install`）。
 
-## ECS Auto Scaling 整合
+## ECS Service 配置
 
 **問題：** ECS Services 若有 Application Auto Scaling，直接設定 `desiredCount` 會與 scaling policies 衝突。
 
-**解決方案：條件式偵測（Conditional Detection）**
+**解決方案：統一的 start/stop 配置（v3.3+）**
 
-1. **偵測階段**：Lambda 使用 `DescribeScalableTargets` 檢查 service 是否有 Auto Scaling
-2. **有 Auto Scaling**：
+使用統一的 `start` 和 `stop` 配置，支援兩種模式：
+
+1. **Auto Scaling Mode**（有 Application Auto Scaling）：
+   - 同時提供 `minCapacity`、`maxCapacity` 和 `desiredCount`
    - START: 設定 `MinCapacity=N`, `MaxCapacity=M`, `desiredCount=D`
-   - STOP: 設定 `MinCapacity=0`, `MaxCapacity=0`
-3. **無 Auto Scaling（Legacy Mode）**：
-   - START: 設定 `desiredCount=defaultDesiredCount`
-   - STOP: 使用 `stopBehavior` (scale_to_zero/reduce_by_count/reduce_to_count)
+   - STOP: 設定 `MinCapacity=0`, `MaxCapacity=0`, `desiredCount=0`
+
+2. **Direct Mode**（無 Application Auto Scaling）：
+   - 僅提供 `desiredCount`
+   - START: 設定 `desiredCount=N`
+   - STOP: 設定 `desiredCount=0`
 
 **配置範例：**
 
 ```yaml
+# Auto Scaling mode（有 Application Auto Scaling 的 service）
 resource_defaults:
   ecs-service:
-    # Auto Scaling mode (推薦，有 Auto Scaling 的 service 使用)
-    autoScaling:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    start:
       minCapacity: 2
       maxCapacity: 6
-      desiredCount: 3
+      desiredCount: 2
+    stop:
+      minCapacity: 0
+      maxCapacity: 0
+      desiredCount: 0
 
-    # Legacy mode (fallback，無 Auto Scaling 的 service 使用)
-    defaultDesiredCount: 1
-    stopBehavior:
-      mode: scale_to_zero
+# Direct mode（無 Application Auto Scaling 的 service）
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    start:
+      desiredCount: 1
+    stop:
+      desiredCount: 0
 ```
 
-**重要：** 如果 service 有 Auto Scaling 但 config 缺少 `autoScaling` 設定，Lambda 會拋出錯誤要求補充配置。
+**運作機制：** Lambda 在執行時會動態偵測 service 是否有 Auto Scaling，並根據配置中是否提供 `minCapacity`/`maxCapacity` 來決定使用哪種 API。
 
 ## Known Issues & Workarounds
 
-### Issue #1: Serverless Framework + AWS SSO Credentials
+### Issue #1: Serverless Framework + AWS SSO Credentials ✅ RESOLVED
 
-**問題：** `serverless deploy` 無法正確處理 AWS SSO credentials，出現：
+**問題（已解決）：** Serverless Framework 無法正確處理 AWS SSO credentials，出現 `EHOSTUNREACH 169.254.169.254:80` 錯誤。
 
-```
-EHOSTUNREACH 169.254.169.254:80
-Could not load credentials from any providers
-```
-
-**解決方案：** 使用互動式 CLI（自動處理 AWS credentials）
+**解決方案（v4.0+）：** 互動式 CLI 現在會自動將 SSO credentials 轉換為標準環境變數
 
 ```bash
 # ✅ 使用互動式 CLI（推薦）
 npm run deploy
 # 選擇環境 → 選擇部署模式
+# Script 會自動執行 `aws configure export-credentials` 並注入環境變數
 
-# ❌ 不要直接用 serverless deploy (SSO 環境會失敗)
-# serverless deploy --stage pg-development-airsync-dev
+# ✅ 如果部署失敗，請先確認 SSO session 有效
+aws sso login --profile <profile-name>
 ```
 
-**背景機制：** 互動式 CLI 使用 `serverless-better-credentials` plugin 正確處理 SSO credentials
+**背景機制：**
+
+- `run-interactive.js` 使用 `aws configure export-credentials` 自動導出 SSO credentials
+- 轉換為標準的 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_SESSION_TOKEN`
+- Serverless Framework 直接使用標準 credentials（無需特殊 plugin）
+- **已移除 `serverless-better-credentials` 依賴**
 
 ### Issue #2: Config Schema 大小寫
 
@@ -149,12 +165,14 @@ npm run deploy
 # ✅ 正確
 resource_defaults:
   ecs-service:
-    autoScaling: ...
+    start:
+      desiredCount: 1
 
 # ❌ 錯誤（會導致 config 讀取為空物件）
 resourceDefaults:
   ecs-service:
-    autoScaling: ...
+    start:
+      desiredCount: 1
 ```
 
 ## Quick Commands

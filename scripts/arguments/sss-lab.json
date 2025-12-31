@@ -2,6 +2,7 @@
   "scope": "aws-account",
   "region": "ap-southeast-1",
   "stage": "sss-lab",
+  "profile": "sss-lab",
   "function-name": "lights-out-sss-lab",
   "config": {
     "name": "/lights-out/sss-lab/config",

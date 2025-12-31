@@ -137,44 +137,67 @@ schedules:
 
 ### Step 3: AWS Credentials 設定
 
-**問題:** Serverless Framework v3 無法直接讀取 AWS CLI login session。
+**⚠️ 重要：** 這是本專案最常見的問題來源。Serverless Framework 無法直接讀取 AWS SSO session，需要特別處理。
 
-**實際可行的解決方法:**
+#### 快速檢查清單
 
-#### 方法 A: 從 AWS CLI Login Session 匯出（推薦用於臨時部署）
+在部署前，確保以下命令都能成功執行：
 
 ```bash
-# 1. 確保已登入
-aws login
+# 1. 驗證 AWS CLI 已登入
+aws sts get-caller-identity --profile sss-lab
+
+# 2. 驗證 profile 設定正確
+aws configure list --profile sss-lab
+
+# 3. 測試 SSO credentials
+aws s3 ls --profile sss-lab  # 應該不報錯
+```
+
+如果以上任一步驟失敗，請依照下方排解步驟操作。
+
+---
+
+#### 方法 A: 手動導出環境變數（最可靠，推薦）
+
+這是**經過實戰驗證最可靠的方法**，可以完全繞過 Serverless Framework 的 SSO 問題。
+
+```bash
+# 1. 確保已登入 SSO
+aws sso login --profile sss-lab
 
 # 2. 驗證登入狀態
-aws sts get-caller-identity
+aws sts get-caller-identity --profile sss-lab
 
-# 3. 匯出環境變數
-eval $(aws configure export-credentials --format env)
+# 3. 導出 credentials 為環境變數
+eval $(aws configure export-credentials --profile sss-lab --format env)
 
-# 4. 驗證環境變數
+# 4. 驗證環境變數已設定
 echo "Access Key: $AWS_ACCESS_KEY_ID"
-echo "Expires: $AWS_CREDENTIAL_EXPIRATION"
+echo "Secret Key: ${AWS_SECRET_ACCESS_KEY:0:10}..."
+echo "Session Token: ${AWS_SESSION_TOKEN:0:20}..."
 
-# 5. 立即部署（憑證通常有效 8 小時）
-npx serverless deploy --stage sss-lab
+# 5. 立即部署（憑證通常有效 1-12 小時）
+npm run deploy
 ```
 
-**常見問題:**
+**優點：**
 
-- **錯誤:** `Credentials were refreshed, but the refreshed credentials are still expired.`
+- ✅ 100% 可靠，不依賴 Serverless Framework 的 SSO 支援
+- ✅ 適用於所有部署方式（互動式 CLI 或直接執行 serverless 命令）
+- ✅ 容易除錯（可以直接檢查環境變數）
 
-- **解決:** 完全清除並重新登入
+**注意事項：**
 
-```bash
-rm -rf ~/.aws/login/
-rm -rf ~/.aws/cli/cache/
-aws login
-eval $(aws configure export-credentials --format env)
-```
+- ⚠️ 需要在每次新的 terminal session 重新執行
+- ⚠️ credentials 有時效性（通常 1-12 小時，視組織 SSO 設定而定）
+- ⚠️ credentials 過期後需要重新執行步驟 1-4
 
-#### 方法 B: 配置 SSO Profile（推薦用於日常開發）
+---
+
+#### 方法 B: 配置 SSO Profile + 環境變數（推薦用於日常開發）
+
+本專案的互動式 CLI 已支援自動設定 AWS_PROFILE，但仍可能遇到問題。
 
 ```bash
 # 1. 配置 SSO Profile（一次性設定）
@@ -189,20 +212,26 @@ aws configure sso
 # CLI default region: ap-southeast-1
 # CLI profile name: sss-lab
 
-# 2. 登入
+# 2. 登入 SSO
 aws sso login --profile sss-lab
 
-# 3. 設定環境變數
+# 3. 驗證 credentials
+aws sts get-caller-identity --profile sss-lab
+
+# 4. 設定環境變數
 export AWS_PROFILE=sss-lab
 
-# 4. 驗證
-aws sts get-caller-identity
-
 # 5. 部署
-npx serverless deploy --stage sss-lab
+npm run deploy
 ```
 
+**如果仍然失敗，改用方法 A（手動導出環境變數）。**
+
+---
+
 #### 方法 C: 從 AWS Console 取得臨時憑證（緊急備案）
+
+適用於無法使用 AWS CLI 的情況（例如：SSO 設定問題）。
 
 1. 登入 AWS Console
 
@@ -214,7 +243,98 @@ npx serverless deploy --stage sss-lab
 aws configure export-credentials --format env
 ```
 
-4. 複製輸出到本地終端執行
+4. 複製輸出到本地終端執行（包括 `export` 命令）
+
+5. 在本地執行部署：
+
+```bash
+npm run deploy
+```
+
+---
+
+#### 常見錯誤與解決方案
+
+##### 錯誤 1: "The security token included in the request is invalid"
+
+**原因：** Serverless Framework 無法正確讀取 SSO credentials。
+
+**解決方案：**
+
+```bash
+# 完全清除 AWS cache
+rm -rf ~/.aws/sso/cache/*
+rm -rf ~/.aws/cli/cache/*
+
+# 重新登入
+aws sso logout
+aws sso login --profile sss-lab
+
+# 使用方法 A（手動導出環境變數）
+eval $(aws configure export-credentials --profile sss-lab --format env)
+
+# 重新部署
+npm run deploy
+```
+
+##### 錯誤 2: "Credentials were refreshed, but the refreshed credentials are still expired"
+
+**原因：** AWS SSO session cache 損壞或過期。
+
+**解決方案：**
+
+```bash
+# 1. 完全清除所有 AWS credentials cache
+rm -rf ~/.aws/login/
+rm -rf ~/.aws/sso/cache/
+rm -rf ~/.aws/cli/cache/
+rm -rf .serverless/  # 清除 Serverless Framework cache
+
+# 2. 重新登入
+aws sso login --profile sss-lab
+
+# 3. 使用方法 A（手動導出環境變數）
+eval $(aws configure export-credentials --profile sss-lab --format env)
+
+# 4. 驗證
+echo "Access Key: $AWS_ACCESS_KEY_ID"
+
+# 5. 重新部署
+npm run deploy
+```
+
+##### 錯誤 3: "AWS provider credentials not found"
+
+**原因：** Serverless Framework 找不到 credentials。
+
+**解決方案：**
+
+```bash
+# 檢查是否已設定環境變數
+env | grep AWS
+
+# 如果沒有，使用方法 A
+eval $(aws configure export-credentials --profile sss-lab --format env)
+
+# 再次檢查
+env | grep AWS
+
+# 應該看到：
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
+# AWS_SESSION_TOKEN=...
+```
+
+---
+
+#### 專案配置說明
+
+本專案已在以下檔案中配置 AWS profile 支援：
+
+1. **`scripts/arguments/sss-lab.json`**：添加了 `"profile": "sss-lab"` 欄位
+2. **`scripts/run-interactive.js`**：自動設定 `AWS_PROFILE` 環境變數並傳遞 `--aws-profile` 參數
+
+但由於 `serverless-better-credentials` plugin 在某些環境下仍有問題，**強烈建議使用方法 A（手動導出環境變數）**作為主要部署方式。
 
 ### Step 4: 部署前驗證
 
@@ -1124,16 +1244,64 @@ npm run action
 
 ---
 
-## ECS Auto Scaling 配置指南
+## ECS Service 配置指南
 
-### 何時需要配置 autoScaling？
+### 配置結構
 
-如果 ECS Service 已配置 Application Auto Scaling，必須在配置檔案中新增 `autoScaling` 欄位。
+ECS Service 使用統一的 `start` 和 `stop` 配置，支援兩種模式：
 
-**檢查方式:**
+#### 1. Auto Scaling Mode（有 Application Auto Scaling）
+
+當 ECS Service 配置了 Application Auto Scaling 時，使用此模式。
+
+```yaml
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    start:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 2
+    stop:
+      minCapacity: 0
+      maxCapacity: 0
+      desiredCount: 0
+```
+
+**說明:**
+
+- `minCapacity`: Auto Scaling 最小容量
+- `maxCapacity`: Auto Scaling 最大容量
+- `desiredCount`: 期望任務數量（必須在 min 和 max 之間）
+- START 操作：設定 Auto Scaling 範圍並啟動服務
+- STOP 操作：將 Auto Scaling 範圍設為 0 以完全關閉
+
+#### 2. Direct Mode（無 Application Auto Scaling）
+
+當 ECS Service 沒有配置 Application Auto Scaling 時，使用此模式。
+
+```yaml
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    start:
+      desiredCount: 1
+    stop:
+      desiredCount: 0
+```
+
+**說明:**
+
+- 僅需指定 `desiredCount`
+- START 操作：設定服務的任務數量
+- STOP 操作：將任務數量設為 0
+
+### 檢查 Service 是否有 Auto Scaling
 
 ```bash
-# 檢查 Service 是否有 Auto Scaling
+# 檢查 Service 是否有 Application Auto Scaling
 aws application-autoscaling describe-scalable-targets \
   --service-namespace ecs \
   --resource-ids service/{cluster-name}/{service-name} \
@@ -1141,62 +1309,32 @@ aws application-autoscaling describe-scalable-targets \
   --region {region}
 ```
 
-如果回傳結果有 `ScalableTargets`，表示 Service 有 Auto Scaling。
+如果回傳結果有 `ScalableTargets`，表示 Service 有 Auto Scaling，應使用 Auto Scaling Mode 配置。
 
-### autoScaling vs defaultDesiredCount 優先級
+### 配置步驟
 
-**運作邏輯:**
-
-1. **Runtime 偵測**: Lambda 執行時會先呼叫 `DescribeScalableTargets` 偵測 Service 是否有 Auto Scaling
-2. **有 Auto Scaling**: 使用 `autoScaling` 配置（如果缺少會拋出錯誤）
-3. **無 Auto Scaling**: 使用 `defaultDesiredCount` + `stopBehavior`
-
-**範例配置（同時提供兩者）:**
-
-```yaml
-resource_defaults:
-  ecs-service:
-    # Auto Scaling mode（有 Auto Scaling 時使用）
-    autoScaling:
-      minCapacity: 2
-      maxCapacity: 6
-      desiredCount: 3
-
-    # Legacy mode（無 Auto Scaling 時使用）
-    defaultDesiredCount: 1
-    stopBehavior:
-      mode: scale_to_zero
-```
-
-這樣配置的好處：
-
-- 有 Auto Scaling 的 Service 使用 `autoScaling` 配置
-- 無 Auto Scaling 的 Service 使用 `defaultDesiredCount`
-- 同一個 Lambda 可以管理混合模式的 Services
-
-### 遷移現有配置到 Auto Scaling 模式
-
-**步驟 1: 檢查現有 Auto Scaling 設定**
+**步驟 1: 確認現有設定**
 
 ```bash
+# 如果有 Auto Scaling，取得當前範圍
 aws application-autoscaling describe-scalable-targets \
   --service-namespace ecs \
   --resource-ids service/{cluster}/{service} \
   --scalable-dimension ecs:service:DesiredCount \
   --region {region} \
   --query 'ScalableTargets[0].{Min:MinCapacity,Max:MaxCapacity}'
+
+# 如果沒有 Auto Scaling，取得當前任務數
+aws ecs describe-services \
+  --cluster {cluster} \
+  --services {service} \
+  --region {region} \
+  --query 'services[0].desiredCount'
 ```
 
 **步驟 2: 更新配置檔案**
 
-```yaml
-resource_defaults:
-  ecs-service:
-    autoScaling:
-      minCapacity: 2 # 從步驟 1 取得
-      maxCapacity: 6 # 從步驟 1 取得
-      desiredCount: 3 # 期望的啟動數量
-```
+根據上述檢查結果，選擇對應的配置模式（Auto Scaling Mode 或 Direct Mode）。
 
 **步驟 3: 上傳配置**
 
@@ -1216,55 +1354,35 @@ npm run action
 # 檢查 CloudWatch Logs
 aws logs tail /aws/lambda/lights-out-{stage} \
   --region {region} \
-  --since 5m \
-  --filter-pattern "Auto Scaling"
+  --since 5m
 
-# 應顯示：
-# "Detected Auto Scaling configuration"
-# "Managing service via Auto Scaling"
-# "Service started via Auto Scaling (min=2, max=6, desired=3)"
+# 應顯示操作成功的日誌
 ```
 
-### stopBehavior 模式說明
+### 混合環境配置
 
-僅在**無 Auto Scaling** 的 Service 使用，支援三種模式：
-
-#### 1. scale_to_zero（預設）
-
-完全關閉服務，設定 desiredCount 為 0。
+如果同一環境中有些 Service 有 Auto Scaling，有些沒有：
 
 ```yaml
-stopBehavior:
-  mode: scale_to_zero
+resource_defaults:
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    # 對於有 Auto Scaling 的 Service
+    start:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 2
+    stop:
+      minCapacity: 0
+      maxCapacity: 0
+      desiredCount: 0
 ```
 
-#### 2. reduce_by_count（逐步驗證模式）
+Lambda 會在執行時動態偵測每個 Service 是否有 Auto Scaling，並使用對應的 API：
 
-每次執行減少指定數量，適合分階段驗證影響。
-
-```yaml
-stopBehavior:
-  mode: reduce_by_count
-  reduceByCount: 1 # 每次減少 1 個 task
-```
-
-**範例:** 如果服務當前 desiredCount 為 3
-
-- 第一次執行 stop：3 → 2
-- 第二次執行 stop：2 → 1
-- 第三次執行 stop：1 → 0
-
-#### 3. reduce_to_count（固定目標模式）
-
-設定為固定數量，保留最小運行實例。
-
-```yaml
-stopBehavior:
-  mode: reduce_to_count
-  reduceToCount: 1 # 停止時保留 1 個 task
-```
-
-**使用場景:** 需要保留一個實例處理背景任務或監控。
+- **有 Auto Scaling**: 使用 `RegisterScalableTarget` 設定 min/max capacity
+- **無 Auto Scaling**: 僅使用 `UpdateService` 設定 desiredCount
 
 ---
 
@@ -1539,7 +1657,7 @@ npm run action
 本專案支援 ECS Service 的 Application Auto Scaling 整合，採用**條件式偵測模式**：
 
 - **有 Auto Scaling 的 Service**: 透過 `RegisterScalableTarget` 管理 MinCapacity/MaxCapacity
-- **無 Auto Scaling 的 Service**: 使用 legacy mode 直接設定 desiredCount
+- **無 Auto Scaling 的 Service**: 直接設定 desiredCount
 
 ### 配置範例
 
@@ -1550,10 +1668,14 @@ resource_defaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
-    autoScaling:
-      minCapacity: 2 # START 時的最小容量
-      maxCapacity: 6 # START 時的最大容量
-      desiredCount: 3 # START 時的目標數量
+    start:
+      minCapacity: 2
+      maxCapacity: 6
+      desiredCount: 2
+    stop:
+      minCapacity: 0
+      maxCapacity: 0
+      desiredCount: 0
 ```
 
 **無 Auto Scaling 的環境（sss-lab）:**
@@ -1563,9 +1685,10 @@ resource_defaults:
   ecs-service:
     waitForStable: true
     stableTimeoutSeconds: 300
-    defaultDesiredCount: 1
-    stopBehavior:
-      mode: scale_to_zero
+    start:
+      desiredCount: 1
+    stop:
+      desiredCount: 0
 ```
 
 ### 運作邏輯
@@ -1574,13 +1697,13 @@ resource_defaults:
 
 1. 偵測 Service 是否有 Auto Scaling
 2. 如果有：設定 MinCapacity、MaxCapacity 和 desiredCount
-3. 如果無：設定 desiredCount 為 defaultDesiredCount
+3. 如果無：設定 desiredCount
 
 **STOP 操作:**
 
 1. 偵測 Service 是否有 Auto Scaling
 2. 如果有：設定 MinCapacity=0, MaxCapacity=0, desiredCount=0
-3. 如果無：根據 stopBehavior 設定 desiredCount
+3. 如果無：設定 desiredCount=0
 
 ### 驗證檢查清單
 
@@ -1610,11 +1733,18 @@ aws lambda invoke \
 
 ## 版本歷史
 
+### v3.3 (2025-12-31)
+
+- **重大變更:** 簡化 ECS Service 配置結構
+- 統一使用 `start` 和 `stop` 配置取代 `autoScaling`、`defaultDesiredCount`、`stopBehavior`
+- 更新 Zod schema 驗證以支援新結構
+- 使用 TypeScript discriminated union types 強化型別檢查
+- 更新部署指南文件
+
 ### v3.2 (2025-12-30)
 
 - **新功能:** ECS Application Auto Scaling 整合（條件式偵測模式）
 - 新增 IAM 權限：`application-autoscaling:DescribeScalableTargets`, `RegisterScalableTarget`
-- 新增配置欄位：`resource_defaults.ecs-service.autoScaling`
 - 更新 config schema 驗證（Zod）
 - 新增已知問題：Serverless Framework + AWS SSO Credentials
 

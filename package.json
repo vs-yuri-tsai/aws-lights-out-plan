@@ -58,7 +58,6 @@
     "prettier": "^3.7.4",
     "prompts": "^2.4.2",
     "serverless": "^3.39.0",
-    "serverless-better-credentials": "^2.0.1",
     "serverless-esbuild": "^1.57.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"

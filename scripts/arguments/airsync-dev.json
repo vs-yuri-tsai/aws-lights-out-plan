@@ -2,6 +2,7 @@
   "scope": "project",
   "region": "us-east-1",
   "stage": "pg-development-airsync-dev",
+  "profile": "pg-development",
   "function-name": "lights-out-pg-development-airsync-dev",
   "config": {
     "name": "/lights-out/pg-development-airsync-dev/config",

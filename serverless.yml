@@ -2,6 +2,7 @@ service: lights-out
 
 provider:
   name: aws
+  # Profile is set via AWS_PROFILE environment variable (managed by run-interactive.js)
   region: ${opt:region}
   stage: ${opt:stage}
   runtime: nodejs20.x # TODO: upgrade to 22.x
@@ -88,7 +89,6 @@ custom:
     sss-lab: sss-lab.yml
 
 plugins:
-  - serverless-better-credentials
   - serverless-esbuild
 
 # CloudFormation resources
