@@ -7,7 +7,7 @@ discovery:
   method: tags
   tags:
     lights-out:managed: 'true'
-    lights-out:project: 'airsync-dev'
+    lights-out:project: airsync-dev
   resource_types:
     - ecs:service
 resource_defaults:

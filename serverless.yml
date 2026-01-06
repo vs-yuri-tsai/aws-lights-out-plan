@@ -5,7 +5,6 @@ provider:
   # Profile is set via AWS_PROFILE environment variable (managed by run-interactive.js)
   region: ${opt:region}
   stage: ${opt:stage}
-  profile: ${env:AWS_PROFILE}
   runtime: nodejs20.x # TODO: upgrade to 22.x
 
   iam:
@@ -83,7 +82,7 @@ functions:
 
   # Teams Integration: Notification Handler
   teamsNotifier:
-    name: ${self:service}-${self:provider.profile}-teams-notifier
+    name: ${self:service}-teams-notifier
     handler: src/functions/teams-notifier/index.main
     runtime: nodejs20.x
     timeout: 10
