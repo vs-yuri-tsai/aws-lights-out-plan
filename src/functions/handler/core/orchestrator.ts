@@ -12,10 +12,10 @@ import type {
   HandlerResult,
   LambdaAction,
   ExecutionStrategy,
-} from '@/types';
-import { TagDiscovery } from '@discovery/tagDiscovery';
-import { getHandler } from '@handlers/factory';
-import { setupLogger } from '@utils/logger';
+} from '@shared/types';
+import { TagDiscovery } from '../discovery/tagDiscovery';
+import { getHandler } from '../handlers/factory';
+import { setupLogger } from '@shared/utils/logger';
 
 const logger = setupLogger('lights-out:orchestrator');
 

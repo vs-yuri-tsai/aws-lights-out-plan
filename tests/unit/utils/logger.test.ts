@@ -1,18 +1,22 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { setupLogger } from '@utils/logger';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import { setupLogger } from '@shared/utils/logger';
+import { TextDecoder } from 'util';
 
 describe('Logger Configuration', () => {
-  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutWriteSpy: MockInstance<(chunk: string | Uint8Array) => boolean>;
   let capturedLogs: string[] = [];
   let originalEnv: string | undefined;
 
   beforeEach(() => {
     capturedLogs = [];
     originalEnv = process.env.LOG_LEVEL;
-    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
-      capturedLogs.push(chunk.toString());
-      return true;
-    });
+    stdoutWriteSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        const logString = typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+        capturedLogs.push(logString);
+        return true;
+      });
   });
 
   afterEach(() => {

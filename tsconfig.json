@@ -24,11 +24,8 @@
     // Path Aliases
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@handlers/*": ["src/handlers/*"],
-      "@discovery/*": ["src/discovery/*"],
-      "@utils/*": ["src/utils/*"]
+      "@shared/*": ["src/shared/*"],
+      "@functions/*": ["src/functions/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*"],

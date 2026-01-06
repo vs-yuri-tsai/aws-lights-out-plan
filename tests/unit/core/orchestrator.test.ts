@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Config, DiscoveredResource, HandlerResult, ResourceHandler } from '@/types';
+import type { Config, DiscoveredResource, HandlerResult, ResourceHandler } from '@shared/types';
 
 // ============================================================================
 // HOISTED MOCKS - Must be defined before imports
@@ -40,15 +40,15 @@ const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock } = vi.hoisted(() => 
 });
 
 // Mock the modules using hoisted factories
-vi.mock('@discovery/tagDiscovery', () => ({
+vi.mock('@functions/handler/discovery/tagDiscovery', () => ({
   TagDiscovery: TagDiscoveryMock,
 }));
 
-vi.mock('@handlers/factory', () => ({
+vi.mock('@functions/handler/handlers/factory', () => ({
   getHandler: mockGetHandlerFn,
 }));
 
-vi.mock('@utils/logger', () => ({
+vi.mock('@shared/utils/logger', () => ({
   setupLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock('@utils/logger', () => ({
 }));
 
 // Import AFTER mocks are defined
-import { Orchestrator } from '@core/orchestrator';
+import { Orchestrator } from '@functions/handler/core/orchestrator';
 
 // ============================================================================
 // TESTS

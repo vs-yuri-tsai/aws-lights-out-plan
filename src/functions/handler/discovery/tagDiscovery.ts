@@ -10,8 +10,8 @@ import {
   GetResourcesCommand,
   type ResourceTagMapping,
 } from '@aws-sdk/client-resource-groups-tagging-api';
-import type { DiscoveredResource } from '@/types';
-import { setupLogger } from '@utils/logger';
+import type { DiscoveredResource } from '@shared/types';
+import { setupLogger } from '@shared/utils/logger';
 
 const logger = setupLogger('lights-out:tag-discovery');
 

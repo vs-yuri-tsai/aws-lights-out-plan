@@ -10,7 +10,7 @@ import type {
   OrchestrationResult,
   LambdaExecutionResult,
   DiscoveryResult,
-} from '@/types';
+} from '@shared/types';
 
 /**
  * Asserts that a HandlerResult represents a successful operation.

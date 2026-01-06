@@ -13,7 +13,7 @@ import {
 import fetch from 'node-fetch';
 import { getProjectConfig } from './config';
 import { createStateChangeCard } from './adaptiveCard';
-import { setupLogger } from '@utils/logger';
+import { setupLogger } from '@shared/utils/logger';
 
 const logger = setupLogger('lights-out:teams:notifier');
 

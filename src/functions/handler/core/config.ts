@@ -9,8 +9,8 @@ import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import { LRUCache } from 'lru-cache';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import type { Config } from '@/types';
-import { setupLogger } from '@utils/logger';
+import type { Config } from '@shared/types';
+import { setupLogger } from '@shared/utils/logger';
 
 const logger = setupLogger('lights-out:config');
 

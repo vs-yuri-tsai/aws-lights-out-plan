@@ -6,7 +6,7 @@
  * on a specific AWS resource type (e.g., ECS Service, RDS Instance).
  */
 
-import type { Config } from '@/types';
+import type { Config } from '@shared/types';
 
 /**
  * Extract resource-type-specific defaults from configuration.

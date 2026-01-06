@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getResourceDefaults } from '@handlers/base';
-import { Config, HandlerResult } from '@/types';
+import { getResourceDefaults } from '@functions/handler/handlers/base';
+import { Config, HandlerResult } from '@shared/types';
 
 describe('getResourceDefaults utility', () => {
   let sampleConfig: Config;

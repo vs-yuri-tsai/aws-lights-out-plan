@@ -25,9 +25,9 @@ import type {
   ResourceHandler,
   ECSActionConfig,
   ECSResourceDefaults,
-} from '@/types';
-import { setupLogger } from '@utils/logger';
-import { getResourceDefaults } from '@handlers/base';
+} from '@shared/types';
+import { setupLogger } from '@shared/utils/logger';
+import { getResourceDefaults } from './base';
 
 /**
  * Handler for AWS ECS Service resources.

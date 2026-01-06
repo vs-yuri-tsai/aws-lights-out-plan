@@ -5,7 +5,7 @@
  */
 
 import type { Context } from 'aws-lambda';
-import type { Config, DiscoveredResource, HandlerResult, OrchestrationResult } from '@/types';
+import type { Config, DiscoveredResource, HandlerResult, OrchestrationResult } from '@shared/types';
 
 /**
  * Creates a mock AWS Lambda Context.

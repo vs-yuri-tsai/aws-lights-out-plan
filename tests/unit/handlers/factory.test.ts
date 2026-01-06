@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getHandler } from '@handlers/factory';
-import { ECSServiceHandler } from '@handlers/ecsService';
-import { RDSInstanceHandler } from '@handlers/rdsInstance';
-import type { Config, DiscoveredResource } from '@/types';
+import { getHandler } from '@functions/handler/handlers/factory';
+import { ECSServiceHandler } from '@functions/handler/handlers/ecsService';
+import { RDSInstanceHandler } from '@functions/handler/handlers/rdsInstance';
+import type { Config, DiscoveredResource } from '@shared/types';
 
 describe('Handler Factory', () => {
   let sampleConfig: Config;

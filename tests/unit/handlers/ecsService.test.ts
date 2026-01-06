@@ -13,8 +13,8 @@ import {
   DescribeScalableTargetsCommand,
   RegisterScalableTargetCommand,
 } from '@aws-sdk/client-application-auto-scaling';
-import { ECSServiceHandler } from '@handlers/ecsService';
-import type { DiscoveredResource, Config } from '@/types';
+import { ECSServiceHandler } from '@functions/handler/handlers/ecsService';
+import type { DiscoveredResource, Config } from '@shared/types';
 
 const ecsMock = mockClient(ECSClient);
 const autoScalingMock = mockClient(ApplicationAutoScalingClient);

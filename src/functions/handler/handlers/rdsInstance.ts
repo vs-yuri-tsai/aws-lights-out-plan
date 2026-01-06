@@ -14,9 +14,9 @@ import {
 } from '@aws-sdk/client-rds';
 import { setTimeout } from 'timers/promises';
 import type { Logger } from 'pino';
-import type { DiscoveredResource, Config, HandlerResult, ResourceHandler } from '@/types';
-import { setupLogger } from '@utils/logger';
-import { getResourceDefaults } from '@handlers/base';
+import type { DiscoveredResource, Config, HandlerResult, ResourceHandler } from '@shared/types';
+import { setupLogger } from '@shared/utils/logger';
+import { getResourceDefaults } from './base';
 
 /**
  * Handler for AWS RDS DB Instance resources.

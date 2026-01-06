@@ -13,8 +13,8 @@ import {
   StartDBInstanceCommand,
   StopDBInstanceCommand,
 } from '@aws-sdk/client-rds';
-import { RDSInstanceHandler } from '@handlers/rdsInstance';
-import type { DiscoveredResource, Config } from '@/types';
+import { RDSInstanceHandler } from '@functions/handler/handlers/rdsInstance';
+import type { DiscoveredResource, Config } from '@shared/types';
 
 // Mock timers/promises to work with Vitest fake timers
 vi.mock('timers/promises', () => ({

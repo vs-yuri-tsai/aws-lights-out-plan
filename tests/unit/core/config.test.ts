@@ -7,7 +7,7 @@ import {
   ConfigError,
   ParameterNotFoundError,
   ConfigValidationError,
-} from '@core/config';
+} from '@functions/handler/core/config';
 
 const ssmMock = mockClient(SSMClient);
 

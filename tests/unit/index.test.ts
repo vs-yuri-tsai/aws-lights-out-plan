@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Context } from 'aws-lambda';
-import type { Config, DiscoveredResource, OrchestrationResult } from '@/types';
+import type { Config, DiscoveredResource, OrchestrationResult } from '@shared/types';
 
 // Type for Lambda response body
 interface LambdaResponseBody {
@@ -61,15 +61,15 @@ const { mockLoadConfigFromSsm, mockOrchestratorClass, mockDiscoverResourcesFn, m
   });
 
 // Mock the modules using hoisted factories
-vi.mock('@core/config', () => ({
+vi.mock('@functions/handler/core/config', () => ({
   loadConfigFromSsm: mockLoadConfigFromSsm,
 }));
 
-vi.mock('@core/orchestrator', () => ({
+vi.mock('@functions/handler/core/orchestrator', () => ({
   Orchestrator: mockOrchestratorClass, // Export the mocked constructor
 }));
 
-vi.mock('@utils/logger', () => ({
+vi.mock('@shared/utils/logger', () => ({
   setupLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -79,7 +79,7 @@ vi.mock('@utils/logger', () => ({
 }));
 
 // Import AFTER mocks are defined
-import { main } from '@/index';
+import { main } from '@functions/handler/index';
 
 // ============================================================================
 // TESTS

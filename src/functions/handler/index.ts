@@ -6,10 +6,10 @@
  */
 
 import type { Context } from 'aws-lambda';
-import type { LambdaAction, DiscoveryResult, LambdaExecutionResult } from '@/types';
-import { loadConfigFromSsm } from '@core/config';
-import { Orchestrator } from '@core/orchestrator';
-import { setupLogger } from '@utils/logger';
+import type { LambdaAction, DiscoveryResult, LambdaExecutionResult } from '@shared/types';
+import { loadConfigFromSsm } from './core/config';
+import { Orchestrator } from './core/orchestrator';
+import { setupLogger } from '@shared/utils/logger';
 
 const logger = setupLogger('lights-out:main');
 

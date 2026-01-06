@@ -4,7 +4,7 @@ import {
   ResourceGroupsTaggingAPIClient,
   GetResourcesCommand,
 } from '@aws-sdk/client-resource-groups-tagging-api';
-import { TagDiscovery } from '@discovery/tagDiscovery';
+import { TagDiscovery } from '@functions/handler/discovery/tagDiscovery';
 
 const taggingMock = mockClient(ResourceGroupsTaggingAPIClient);
 
