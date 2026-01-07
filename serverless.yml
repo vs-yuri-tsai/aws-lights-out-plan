@@ -51,7 +51,7 @@ provider:
 
   environment:
     CONFIG_PARAMETER_NAME: /lights-out/${self:provider.stage}/config
-    LOG_LEVEL: ${opt:loglevel, 'INFO'}
+    LOG_LEVEL: ${opt:loglevel, 'DEBUG'}
 
 functions:
   handler:

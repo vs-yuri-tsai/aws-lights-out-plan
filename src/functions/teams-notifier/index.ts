@@ -10,6 +10,7 @@ import {
   ResourceGroupsTaggingAPIClient,
   GetResourcesCommand,
 } from '@aws-sdk/client-resource-groups-tagging-api';
+import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import fetch from 'node-fetch';
 import { getProjectConfig } from './config';
 import { createStateChangeCard } from './adaptiveCard';
@@ -19,6 +20,7 @@ const logger = setupLogger('lights-out:teams:notifier');
 
 // AWS SDK clients
 const taggingClient = new ResourceGroupsTaggingAPIClient({});
+const ecsClient = new ECSClient({});
 
 /**
  * ECS Task State Change event structure.
@@ -124,12 +126,10 @@ async function handleECSStateChange(
 
   // Extract resource information
   const taskArn = detail.taskArn;
-  const resourceId = extractResourceId(taskArn);
 
   logger.debug(
     {
       taskArn,
-      resourceId,
       lastStatus: detail.lastStatus,
       desiredStatus: detail.desiredStatus,
       group: detail.group,
@@ -161,27 +161,73 @@ async function handleECSStateChange(
     return;
   }
 
+  // Check if all tasks have reached the target state (deduplication logic)
+  // Only notify when ALL tasks in the service have completed the state transition
+  const serviceName = detail.group?.startsWith('service:')
+    ? detail.group.substring(8) // Remove "service:" prefix
+    : null;
+
+  if (serviceName) {
+    // Query service status to check if all tasks are ready
+    const shouldNotify = await checkServiceReadyState(
+      detail.clusterArn,
+      serviceName,
+      detail.lastStatus
+    );
+
+    if (!shouldNotify) {
+      logger.debug(
+        {
+          serviceName,
+          taskStatus: detail.lastStatus,
+        },
+        'Waiting for all tasks to reach target state, skipping notification'
+      );
+      return;
+    }
+  }
+
   // Prepare notification data
   const clusterName = extractResourceId(detail.clusterArn);
-  const containerNames = detail.containers.map((c) => c.name).join(', ');
-
-  // Infer previous state based on current state
-  // For ECS tasks: RUNNING means it was started (from STOPPED/PENDING)
-  //                STOPPED means it was stopped (from RUNNING)
   const previousState = detail.lastStatus === 'RUNNING' ? 'STOPPED' : 'RUNNING';
+
+  // Determine resource type and ID based on whether this is a service or standalone task
+  let resourceType: string;
+  let resourceId: string;
+  let additionalInfo: Record<string, string>;
+
+  if (serviceName) {
+    // Service-level notification
+    resourceType = 'ecs-service';
+    resourceId = serviceName;
+
+    // Get service details for task count
+    const serviceStatus = await getServiceStatus(detail.clusterArn, serviceName);
+    additionalInfo = {
+      cluster: clusterName,
+      tasksRunning: `${serviceStatus.runningCount}`,
+      tasksDesired: `${serviceStatus.desiredCount}`,
+    };
+  } else {
+    // Standalone task notification
+    resourceType = 'ecs-task';
+    resourceId = extractResourceId(detail.taskArn);
+    const containerNames = detail.containers.map((c) => c.name).join(', ');
+    additionalInfo = {
+      cluster: clusterName,
+      containers: containerNames,
+      taskCount: `${detail.containers.length} container(s)`,
+    };
+  }
 
   const stateChangeData = {
     project,
-    resourceType: 'ecs-task',
+    resourceType,
     resourceId,
     previousState,
     newState: detail.lastStatus,
     timestamp: new Date().toISOString(),
-    additionalInfo: {
-      cluster: clusterName,
-      containers: containerNames,
-      taskCount: `${detail.containers.length} container(s)`,
-    },
+    additionalInfo,
   };
 
   // Send notification
@@ -287,6 +333,80 @@ async function getResourceTags(arn: string): Promise<Record<string, string>> {
     );
     return {};
   }
+}
+
+/**
+ * Check if service has reached the target state for all tasks.
+ * This is used to deduplicate notifications - only notify once when ALL tasks are ready.
+ *
+ * @param clusterArn - ECS cluster ARN
+ * @param serviceName - ECS service name
+ * @param taskStatus - Current task status (RUNNING or STOPPED)
+ * @returns true if should send notification (all tasks ready), false otherwise
+ */
+async function checkServiceReadyState(
+  clusterArn: string,
+  serviceName: string,
+  taskStatus: string
+): Promise<boolean> {
+  try {
+    const serviceStatus = await getServiceStatus(clusterArn, serviceName);
+
+    if (taskStatus === 'RUNNING') {
+      // For START: notify when all tasks are running
+      // runningCount === desiredCount means all tasks have started
+      return serviceStatus.runningCount === serviceStatus.desiredCount;
+    } else if (taskStatus === 'STOPPED') {
+      // For STOP: notify when all tasks are stopped
+      // runningCount === 0 means all tasks have stopped
+      return serviceStatus.runningCount === 0;
+    }
+
+    return false;
+  } catch (error) {
+    logger.error(
+      {
+        clusterArn,
+        serviceName,
+        error: String(error),
+      },
+      'Failed to check service ready state, will send notification anyway'
+    );
+    // On error, send notification to avoid missing alerts
+    return true;
+  }
+}
+
+/**
+ * Get ECS service status.
+ *
+ * @param clusterArn - ECS cluster ARN
+ * @param serviceName - ECS service name
+ * @returns Service status (runningCount, desiredCount)
+ */
+async function getServiceStatus(
+  clusterArn: string,
+  serviceName: string
+): Promise<{ runningCount: number; desiredCount: number }> {
+  const clusterName = extractResourceId(clusterArn);
+
+  const command = new DescribeServicesCommand({
+    cluster: clusterName,
+    services: [serviceName],
+  });
+
+  const response = await ecsClient.send(command);
+
+  if (!response.services || response.services.length === 0) {
+    throw new Error(`Service ${serviceName} not found in cluster ${clusterName}`);
+  }
+
+  const service = response.services[0];
+
+  return {
+    runningCount: service.runningCount ?? 0,
+    desiredCount: service.desiredCount ?? 0,
+  };
 }
 
 /**

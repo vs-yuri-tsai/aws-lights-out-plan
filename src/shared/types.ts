@@ -177,6 +177,23 @@ export interface ECSResourceDefaults {
 /**
  * Configuration from SSM Parameter Store.
  */
+/**
+ * Teams notification configuration.
+ */
+export interface TeamsNotificationConfig {
+  enabled: boolean;
+  webhook_url: string;
+  description?: string; // Optional description for webhook (e.g., "Dev Team Channel", "Staging Alerts")
+}
+
+/**
+ * Notification configuration for various channels.
+ */
+export interface NotificationConfig {
+  teams?: TeamsNotificationConfig;
+  [key: string]: unknown; // Allow for future notification channels (e.g., Slack, email)
+}
+
 export interface Config {
   version: string;
   environment: string;
@@ -192,6 +209,7 @@ export interface Config {
     execution_strategy?: ExecutionStrategy;
     [key: string]: unknown;
   };
+  notifications?: NotificationConfig; // New: notification settings
   resource_defaults?: Record<string, Record<string, unknown>>;
   [key: string]: unknown;
 }

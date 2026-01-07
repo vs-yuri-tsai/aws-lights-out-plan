@@ -10,6 +10,7 @@ import {
   ResourceGroupsTaggingAPIClient,
   GetResourcesCommand,
 } from '@aws-sdk/client-resource-groups-tagging-api';
+import { ECSClient, DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import type { EventBridgeEvent } from 'aws-lambda';
 import { main } from '@functions/teams-notifier/index';
 import * as config from '@functions/teams-notifier/config';
@@ -18,6 +19,7 @@ import type { TeamsConfig } from '@functions/teams-notifier/config';
 
 // Mock external dependencies
 const taggingMock = mockClient(ResourceGroupsTaggingAPIClient);
+const ecsMock = mockClient(ECSClient);
 
 // Mock node-fetch
 vi.mock('node-fetch', () => ({
@@ -32,6 +34,7 @@ describe('teams-notifier/index', () => {
 
   beforeEach(() => {
     taggingMock.reset();
+    ecsMock.reset();
     vi.clearAllMocks();
     process.env.TEAMS_CONFIG_TABLE = 'test-teams-config';
   });
@@ -113,6 +116,17 @@ describe('teams-notifier/index', () => {
         ],
       });
 
+      // Mock ECS service status - all tasks are running
+      ecsMock.on(DescribeServicesCommand).resolves({
+        services: [
+          {
+            serviceName: 'airsync-api-service',
+            runningCount: 2,
+            desiredCount: 2,
+          },
+        ],
+      });
+
       // Mock config retrieval
       const mockConfig: TeamsConfig = {
         project: 'airsync-dev',
@@ -143,13 +157,14 @@ describe('teams-notifier/index', () => {
       expect(adaptiveCard.createStateChangeCard).toHaveBeenCalledWith(
         expect.objectContaining({
           project: 'airsync-dev',
-          resourceType: 'ecs-task',
-          resourceId: 'abc123',
-          previousState: 'STOPPED', // Task started: STOPPED → RUNNING
+          resourceType: 'ecs-service', // Changed from ecs-task to ecs-service
+          resourceId: 'airsync-api-service', // Changed from task ID to service name
+          previousState: 'STOPPED', // Service started: STOPPED → RUNNING
           newState: 'RUNNING',
           additionalInfo: expect.objectContaining({
             cluster: 'airsync-cluster',
-            containers: 'api, nginx',
+            tasksRunning: '2',
+            tasksDesired: '2',
           }),
         })
       );
@@ -199,6 +214,17 @@ describe('teams-notifier/index', () => {
         ],
       });
 
+      // Mock ECS service status - all tasks stopped
+      ecsMock.on(DescribeServicesCommand).resolves({
+        services: [
+          {
+            serviceName: 'test-service',
+            runningCount: 0,
+            desiredCount: 0,
+          },
+        ],
+      });
+
       vi.spyOn(config, 'getProjectConfig').mockResolvedValue({
         project: 'test-project',
         webhook_url: 'https://outlook.office.com/webhook/test123',
@@ -218,8 +244,14 @@ describe('teams-notifier/index', () => {
       expect(mockedFetch).toHaveBeenCalled();
       expect(adaptiveCard.createStateChangeCard).toHaveBeenCalledWith(
         expect.objectContaining({
-          previousState: 'RUNNING', // Task stopped: RUNNING → STOPPED
+          resourceType: 'ecs-service',
+          resourceId: 'test-service',
+          previousState: 'RUNNING', // Service stopped: RUNNING → STOPPED
           newState: 'STOPPED',
+          additionalInfo: expect.objectContaining({
+            tasksRunning: '0',
+            tasksDesired: '0',
+          }),
         })
       );
     });
@@ -251,6 +283,17 @@ describe('teams-notifier/index', () => {
           {
             ResourceARN: expectedServiceArn,
             Tags: [{ Key: 'lights-out:project', Value: 'test-project' }],
+          },
+        ],
+      });
+
+      // Mock ECS service status
+      ecsMock.on(DescribeServicesCommand).resolves({
+        services: [
+          {
+            serviceName: 'my-service',
+            runningCount: 1,
+            desiredCount: 1,
           },
         ],
       });

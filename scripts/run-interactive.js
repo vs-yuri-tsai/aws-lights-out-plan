@@ -48,11 +48,11 @@ const MODES = {
     title: 'Lambda Action',
     choices: [
       {
-        title: '▶️  Start    - Start all managed resources',
+        title: '▶️  Start   - Start all managed resources',
         value: 'start',
       },
       {
-        title: '⏹️  Stop     - Stop all managed resources',
+        title: '⏹️  Stop    - Stop all managed resources',
         value: 'stop',
       },
       {

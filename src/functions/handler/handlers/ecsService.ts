@@ -27,6 +27,7 @@ import type {
   ECSResourceDefaults,
 } from '@shared/types';
 import { setupLogger } from '@shared/utils/logger';
+import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
 import { getResourceDefaults } from './base';
 
 /**
@@ -353,7 +354,7 @@ export class ECSServiceHandler implements ResourceHandler {
           await this.waitForStable(timeout);
         }
 
-        return {
+        const result: HandlerResult = {
           success: true,
           action: 'stop',
           resourceType: this.resource.resourceType,
@@ -361,6 +362,11 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service stopped via Auto Scaling (min=${minCapacity}, max=${maxCapacity}, desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
         };
+
+        // Send Teams notification if configured
+        await this.sendNotification(result);
+
+        return result;
       } else {
         // Direct mode
         await this.ecsClient.send(
@@ -377,7 +383,7 @@ export class ECSServiceHandler implements ResourceHandler {
           await this.waitForStable(timeout);
         }
 
-        return {
+        const result: HandlerResult = {
           success: true,
           action: 'stop',
           resourceType: this.resource.resourceType,
@@ -385,13 +391,18 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service stopped (desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
         };
+
+        // Send Teams notification if configured
+        await this.sendNotification(result);
+
+        return result;
       }
     } catch (error) {
       this.logger.error(
         { cluster: this.clusterName, service: this.serviceName, error },
         'Failed to stop service'
       );
-      return {
+      const result: HandlerResult = {
         success: false,
         action: 'stop',
         resourceType: this.resource.resourceType,
@@ -399,6 +410,11 @@ export class ECSServiceHandler implements ResourceHandler {
         message: 'Stop operation failed',
         error: error instanceof Error ? error.message : String(error),
       };
+
+      // Send Teams notification for failure
+      await this.sendNotification(result);
+
+      return result;
     }
   }
 
@@ -471,7 +487,7 @@ export class ECSServiceHandler implements ResourceHandler {
           await this.waitForStable(timeout);
         }
 
-        return {
+        const result: HandlerResult = {
           success: true,
           action: 'start',
           resourceType: this.resource.resourceType,
@@ -479,6 +495,11 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service started via Auto Scaling (min=${minCapacity}, max=${maxCapacity}, desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
         };
+
+        // Send Teams notification if configured
+        await this.sendNotification(result);
+
+        return result;
       } else {
         // Direct mode
         await this.ecsClient.send(
@@ -495,7 +516,7 @@ export class ECSServiceHandler implements ResourceHandler {
           await this.waitForStable(timeout);
         }
 
-        return {
+        const result: HandlerResult = {
           success: true,
           action: 'start',
           resourceType: this.resource.resourceType,
@@ -503,13 +524,18 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service started (desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
         };
+
+        // Send Teams notification if configured
+        await this.sendNotification(result);
+
+        return result;
       }
     } catch (error) {
       this.logger.error(
         { cluster: this.clusterName, service: this.serviceName, error },
         'Failed to start service'
       );
-      return {
+      const result: HandlerResult = {
         success: false,
         action: 'start',
         resourceType: this.resource.resourceType,
@@ -517,6 +543,11 @@ export class ECSServiceHandler implements ResourceHandler {
         message: 'Start operation failed',
         error: error instanceof Error ? error.message : String(error),
       };
+
+      // Send Teams notification for failure
+      await this.sendNotification(result);
+
+      return result;
     }
   }
 
@@ -602,5 +633,33 @@ export class ECSServiceHandler implements ResourceHandler {
       },
       'Service reached stable state'
     );
+  }
+
+  /**
+   * Send Teams notification if configured.
+   *
+   * @param result - Handler operation result
+   */
+  private async sendNotification(result: HandlerResult): Promise<void> {
+    const teamsConfig = this.config.notifications?.teams;
+
+    if (!teamsConfig) {
+      this.logger.debug('Teams notifications not configured, skipping');
+      return;
+    }
+
+    try {
+      await sendTeamsNotification(teamsConfig, result, this.config.environment);
+    } catch (error) {
+      // Log but don't throw - notification failure should not affect the main operation
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          action: result.action,
+          resourceType: result.resourceType,
+        },
+        'Failed to send Teams notification'
+      );
+    }
   }
 }

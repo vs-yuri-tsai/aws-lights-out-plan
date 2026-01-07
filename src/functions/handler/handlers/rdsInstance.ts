@@ -16,6 +16,7 @@ import { setTimeout } from 'timers/promises';
 import type { Logger } from 'pino';
 import type { DiscoveredResource, Config, HandlerResult, ResourceHandler } from '@shared/types';
 import { setupLogger } from '@shared/utils/logger';
+import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
 import { getResourceDefaults } from './base';
 
 /**
@@ -192,7 +193,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         await this.waitForStopped(timeout);
       }
 
-      return {
+      const result: HandlerResult = {
         success: true,
         action: 'stop',
         resourceType: this.resource.resourceType,
@@ -200,6 +201,11 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: `DB instance stopped (was ${String(currentStatus.status)})`,
         previousState: currentStatus,
       };
+
+      // Send Teams notification if configured
+      await this.sendNotification(result);
+
+      return result;
     } catch (error) {
       this.logger.error(
         {
@@ -208,7 +214,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         },
         'Failed to stop DB instance'
       );
-      return {
+      const result: HandlerResult = {
         success: false,
         action: 'stop',
         resourceType: this.resource.resourceType,
@@ -216,6 +222,11 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: 'Stop operation failed',
         error: error instanceof Error ? error.message : String(error),
       };
+
+      // Send Teams notification for failure
+      await this.sendNotification(result);
+
+      return result;
     }
   }
 
@@ -307,7 +318,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         await this.waitForAvailable(timeout);
       }
 
-      return {
+      const result: HandlerResult = {
         success: true,
         action: 'start',
         resourceType: this.resource.resourceType,
@@ -315,6 +326,11 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: `DB instance started (was ${String(currentStatus.status)})`,
         previousState: currentStatus,
       };
+
+      // Send Teams notification if configured
+      await this.sendNotification(result);
+
+      return result;
     } catch (error) {
       this.logger.error(
         {
@@ -323,7 +339,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         },
         'Failed to start DB instance'
       );
-      return {
+      const result: HandlerResult = {
         success: false,
         action: 'start',
         resourceType: this.resource.resourceType,
@@ -331,6 +347,11 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: 'Start operation failed',
         error: error instanceof Error ? error.message : String(error),
       };
+
+      // Send Teams notification for failure
+      await this.sendNotification(result);
+
+      return result;
     }
   }
 
@@ -456,5 +477,33 @@ export class RDSInstanceHandler implements ResourceHandler {
     }
 
     throw new Error(`Timeout waiting for DB instance to stop after ${timeout} seconds`);
+  }
+
+  /**
+   * Send Teams notification if configured.
+   *
+   * @param result - Handler operation result
+   */
+  private async sendNotification(result: HandlerResult): Promise<void> {
+    const teamsConfig = this.config.notifications?.teams;
+
+    if (!teamsConfig) {
+      this.logger.debug('Teams notifications not configured, skipping');
+      return;
+    }
+
+    try {
+      await sendTeamsNotification(teamsConfig, result, this.config.environment);
+    } catch (error) {
+      // Log but don't throw - notification failure should not affect the main operation
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          action: result.action,
+          resourceType: result.resourceType,
+        },
+        'Failed to send Teams notification'
+      );
+    }
   }
 }

@@ -3,6 +3,12 @@ environment: pg-development-airsync-dev
 regions:
   - us-east-1
   - ap-northeast-1
+notifications:
+  teams:
+    enabled: true
+    webhook_url: >-
+      https://defaultf7a082108cd2459f9459ddb19785f3.76.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/11f75ec7467946f7bcfb9026ab827105/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Yw8kWNrx1C6uJ2ItXBPTUrqPX_-1ZneuQX79NAaA9nk
+    description: Power Automate Workflow for Notifications to AirSync App Development.
 discovery:
   method: tags
   tags:

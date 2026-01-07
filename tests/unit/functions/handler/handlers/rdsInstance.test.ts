@@ -21,6 +21,14 @@ vi.mock('timers/promises', () => ({
   setTimeout: (ms: number) => new Promise((resolve) => globalThis.setTimeout(resolve, ms)),
 }));
 
+// Mock Teams notifier
+vi.mock('@shared/utils/teamsNotifier', () => ({
+  sendTeamsNotification: vi.fn(),
+}));
+
+import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
+const mockSendTeamsNotification = vi.mocked(sendTeamsNotification);
+
 const rdsMock = mockClient(RDSClient);
 
 describe('RDSInstanceHandler', () => {
@@ -29,6 +37,7 @@ describe('RDSInstanceHandler', () => {
 
   beforeEach(() => {
     rdsMock.reset();
+    mockSendTeamsNotification.mockClear();
 
     sampleResource = {
       resourceType: 'rds-db',
@@ -571,6 +580,249 @@ describe('RDSInstanceHandler', () => {
       const ready = await handler.isReady();
 
       expect(ready).toBe(false);
+    });
+  });
+
+  describe('Teams notifications', () => {
+    describe('start() with notifications', () => {
+      it('should send Teams notification on successful start', async () => {
+        const configWithTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: true,
+              webhook_url: 'https://example.com/webhook',
+              description: 'Test Channel',
+            },
+          },
+        };
+
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [
+            {
+              DBInstanceStatus: 'stopped',
+              Engine: 'postgres',
+            },
+          ],
+        });
+
+        rdsMock.on(StartDBInstanceCommand).resolves({
+          DBInstance: {
+            DBInstanceStatus: 'starting',
+          },
+        });
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithTeams);
+        const result = await handler.start();
+
+        expect(result.success).toBe(true);
+        expect(mockSendTeamsNotification).toHaveBeenCalledWith(
+          configWithTeams.notifications!.teams,
+          expect.objectContaining({
+            success: true,
+            action: 'start',
+            resourceType: 'rds-db',
+            resourceId: 'test-database',
+            message: expect.stringContaining('DB instance started'),
+          }),
+          'test'
+        );
+        expect(mockSendTeamsNotification).toHaveBeenCalledTimes(1);
+      });
+
+      it('should send Teams notification on failed start', async () => {
+        const configWithTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: true,
+              webhook_url: 'https://example.com/webhook',
+            },
+          },
+        };
+
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [{ DBInstanceStatus: 'stopped' }],
+        });
+
+        rdsMock.on(StartDBInstanceCommand).rejects(new Error('Permission denied'));
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithTeams);
+        const result = await handler.start();
+
+        expect(result.success).toBe(false);
+        expect(mockSendTeamsNotification).toHaveBeenCalledWith(
+          configWithTeams.notifications!.teams,
+          expect.objectContaining({
+            success: false,
+            action: 'start',
+            message: 'Start operation failed',
+            error: 'Permission denied',
+          }),
+          'test'
+        );
+      });
+
+      it('should not send notification when Teams is not configured', async () => {
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [
+            {
+              DBInstanceStatus: 'stopped',
+            },
+          ],
+        });
+
+        rdsMock.on(StartDBInstanceCommand).resolves({
+          DBInstance: {
+            DBInstanceStatus: 'starting',
+          },
+        });
+
+        const handler = new RDSInstanceHandler(sampleResource, sampleConfig);
+        await handler.start();
+
+        expect(mockSendTeamsNotification).not.toHaveBeenCalled();
+      });
+
+      it('should not send notification when Teams is disabled', async () => {
+        const configWithDisabledTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: false,
+              webhook_url: 'https://example.com/webhook',
+            },
+          },
+        };
+
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [
+            {
+              DBInstanceStatus: 'stopped',
+            },
+          ],
+        });
+
+        rdsMock.on(StartDBInstanceCommand).resolves({
+          DBInstance: {
+            DBInstanceStatus: 'starting',
+          },
+        });
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithDisabledTeams);
+        await handler.start();
+
+        // sendTeamsNotification is called but should exit early due to enabled=false
+        expect(mockSendTeamsNotification).toHaveBeenCalledTimes(1);
+      });
+
+      it('should continue operation even if notification fails', async () => {
+        const configWithTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: true,
+              webhook_url: 'https://example.com/webhook',
+            },
+          },
+        };
+
+        mockSendTeamsNotification.mockRejectedValueOnce(new Error('Webhook timeout'));
+
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [
+            {
+              DBInstanceStatus: 'stopped',
+            },
+          ],
+        });
+
+        rdsMock.on(StartDBInstanceCommand).resolves({
+          DBInstance: {
+            DBInstanceStatus: 'starting',
+          },
+        });
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithTeams);
+        const result = await handler.start();
+
+        // Main operation should still succeed
+        expect(result.success).toBe(true);
+        expect(mockSendTeamsNotification).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('stop() with notifications', () => {
+      it('should send Teams notification on successful stop', async () => {
+        const configWithTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: true,
+              webhook_url: 'https://example.com/webhook',
+            },
+          },
+        };
+
+        rdsMock.on(DescribeDBInstancesCommand).resolves({
+          DBInstances: [
+            {
+              DBInstanceStatus: 'available',
+              Engine: 'postgres',
+            },
+          ],
+        });
+
+        rdsMock.on(StopDBInstanceCommand).resolves({
+          DBInstance: {
+            DBInstanceStatus: 'stopping',
+          },
+        });
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithTeams);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(true);
+        expect(mockSendTeamsNotification).toHaveBeenCalledWith(
+          configWithTeams.notifications!.teams,
+          expect.objectContaining({
+            success: true,
+            action: 'stop',
+            resourceType: 'rds-db',
+            message: expect.stringContaining('DB instance stopped'),
+          }),
+          'test'
+        );
+      });
+
+      it('should send Teams notification on failed stop', async () => {
+        const configWithTeams: Config = {
+          ...sampleConfig,
+          notifications: {
+            teams: {
+              enabled: true,
+              webhook_url: 'https://example.com/webhook',
+            },
+          },
+        };
+
+        rdsMock.on(DescribeDBInstancesCommand).rejects(new Error('Network timeout'));
+
+        const handler = new RDSInstanceHandler(sampleResource, configWithTeams);
+        const result = await handler.stop();
+
+        expect(result.success).toBe(false);
+        expect(mockSendTeamsNotification).toHaveBeenCalledWith(
+          configWithTeams.notifications!.teams,
+          expect.objectContaining({
+            success: false,
+            action: 'stop',
+            message: 'Stop operation failed',
+            error: 'Network timeout',
+          }),
+          'test'
+        );
+      });
     });
   });
 });

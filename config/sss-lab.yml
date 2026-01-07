@@ -3,6 +3,11 @@ environment: sss-lab
 regions:
   - ap-southeast-1
   - ap-northeast-1
+notifications:
+  teams:
+    enabled: true
+    webhook_url: 'https://outlook.office.com/webhook/YOUR-WEBHOOK-URL-HERE'
+    description: 'SSS Lab Team Channel' # Optional: describe this webhook
 discovery:
   method: tags
   tags:
