@@ -95,7 +95,17 @@ export async function sendTeamsNotification(
  * @returns Adaptive Card in Teams message format
  */
 function createActionResultCard(result: HandlerResult, environment: string): object {
-  const timestamp = new Date().toISOString();
+  // Format timestamp in Asia/Taipei timezone (e.g., "2025-01-07 14:30:45 GMT+8")
+  const timestamp = new Date().toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
   const actionUpper = result.action.toUpperCase();
   const statusColor = result.success ? 'good' : 'attention';
   const statusEmoji = result.success ? '✅' : '❌';

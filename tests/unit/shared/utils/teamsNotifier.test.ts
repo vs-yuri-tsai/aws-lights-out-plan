@@ -16,6 +16,17 @@ vi.mock('node-fetch', () => ({
 import fetch, { Response } from 'node-fetch';
 const mockedFetch = vi.mocked(fetch);
 
+// Type definitions for Adaptive Card structure
+interface AdaptiveCardFact {
+  title: string;
+  value: string;
+}
+
+interface AdaptiveCardElement {
+  type: string;
+  facts?: AdaptiveCardFact[];
+}
+
 describe('teamsNotifier', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -168,6 +179,74 @@ describe('teamsNotifier', () => {
       // Should format action as "START" (uppercase)
       const bodyText = JSON.stringify(cardContent.body);
       expect(bodyText).toContain('START');
+    });
+
+    it('should include Asia/Taipei localized timestamp', async () => {
+      // Mock Date to a known value (2025-01-07 14:30:45 UTC = 2025-01-07 22:30:45 GMT+8)
+      const mockDate = new Date('2025-01-07T14:30:45.000Z');
+      vi.useFakeTimers();
+      vi.setSystemTime(mockDate);
+
+      mockedFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+      } as Response);
+
+      await sendTeamsNotification(mockConfig, mockSuccessResult, 'workshop');
+
+      const call = mockedFetch.mock.calls[0];
+      const body = JSON.parse(call[1]?.body as string);
+      const cardContent = body.attachments[0].content;
+
+      // Find the Timestamp fact in the FactSet
+      const factSet = (cardContent.body as AdaptiveCardElement[]).find(
+        (item: AdaptiveCardElement) => item.type === 'FactSet'
+      );
+      const timestampFact = factSet?.facts?.find(
+        (fact: AdaptiveCardFact) => fact.title === 'Timestamp'
+      );
+
+      expect(timestampFact).toBeDefined();
+      // Should be in zh-TW locale format with Asia/Taipei timezone
+      // Expected format: "2025/01/07 22:30:45" (UTC+8)
+      expect(timestampFact!.value).toMatch(/2025\/01\/07.*22:30:45/);
+
+      vi.useRealTimers();
+    });
+
+    it('should use 24-hour format for timestamp', async () => {
+      // Mock Date to afternoon time (2025-01-07 06:00:00 UTC = 2025-01-07 14:00:00 GMT+8)
+      const mockDate = new Date('2025-01-07T06:00:00.000Z');
+      vi.useFakeTimers();
+      vi.setSystemTime(mockDate);
+
+      mockedFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+      } as Response);
+
+      await sendTeamsNotification(mockConfig, mockSuccessResult, 'workshop');
+
+      const call = mockedFetch.mock.calls[0];
+      const body = JSON.parse(call[1]?.body as string);
+      const cardContent = body.attachments[0].content;
+
+      const factSet = (cardContent.body as AdaptiveCardElement[]).find(
+        (item: AdaptiveCardElement) => item.type === 'FactSet'
+      );
+      const timestampFact = factSet?.facts?.find(
+        (fact: AdaptiveCardFact) => fact.title === 'Timestamp'
+      );
+
+      expect(timestampFact).toBeDefined();
+      // Should use 24-hour format (14:00), not 12-hour format (2:00 PM)
+      expect(timestampFact!.value).toContain('14:00:00');
+      expect(timestampFact!.value).not.toContain('PM');
+      expect(timestampFact!.value).not.toContain('AM');
+
+      vi.useRealTimers();
     });
   });
 });
