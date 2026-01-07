@@ -41,13 +41,6 @@ provider:
             - logs:CreateLogStream
             - logs:PutLogEvents
           Resource: '*'
-        # Teams Integration Permissions
-        - Effect: Allow
-          Action:
-            - dynamodb:GetItem
-            - dynamodb:Query
-          Resource:
-            Fn::Sub: 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/lights-out-teams-config'
 
   environment:
     CONFIG_PARAMETER_NAME: /lights-out/${self:provider.stage}/config
@@ -79,42 +72,6 @@ functions:
           input:
             action: stop
           enabled: ${file(config/${self:custom.configPath}):schedules_cron.stop.enabled}
-
-  # Teams Integration: Notification Handler
-  teamsNotifier:
-    name: ${self:service}-teams-notifier
-    handler: src/functions/teams-notifier/index.main
-    runtime: nodejs20.x
-    timeout: 10
-    memorySize: 256
-    environment:
-      TEAMS_CONFIG_TABLE: lights-out-teams-config
-    tags:
-      project: lights-out
-      managed-by: serverless
-      component: teams-integration
-    events:
-      # ECS Task State Change
-      - eventBridge:
-          pattern:
-            source:
-              - aws.ecs
-            detail-type:
-              - ECS Task State Change
-            detail:
-              lastStatus:
-                - RUNNING
-                - STOPPED
-      # RDS DB Instance Events (availability category)
-      - eventBridge:
-          pattern:
-            source:
-              - aws.rds
-            detail-type:
-              - RDS DB Instance Event
-            detail:
-              EventCategories:
-                - availability
 
 custom:
   esbuild:
