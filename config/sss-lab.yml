@@ -26,8 +26,10 @@ resource_defaults:
     stop:
       desiredCount: 0
   rds-db:
-    waitForStable: true
-    stableTimeoutSeconds: 900
+    # Fire-and-forget mode: RDS start/stop takes 5-10 minutes,
+    # so we don't wait for completion to avoid Lambda timeout.
+    waitAfterCommand: 60 # Wait 60s after command to confirm state transition started
+    skipSnapshot: true # Don't create snapshot on stop (dev environment)
 schedules:
   default:
     timezone: Asia/Taipei

@@ -9,7 +9,6 @@ import {
   DescribeDBInstancesCommand,
   StartDBInstanceCommand,
   StopDBInstanceCommand,
-  waitUntilDBInstanceAvailable,
   type DBInstance,
 } from '@aws-sdk/client-rds';
 import { setTimeout } from 'timers/promises';
@@ -20,6 +19,7 @@ import type {
   HandlerResult,
   ResourceHandler,
   TriggerSource,
+  RDSResourceDefaults,
 } from '@shared/types';
 import { setupLogger } from '@shared/utils/logger';
 import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
@@ -28,12 +28,22 @@ import { getResourceDefaults } from './base';
 /**
  * Handler for AWS RDS DB Instance resources.
  *
- * This handler manages the lifecycle of RDS DB Instances by using
- * the StartDBInstance and StopDBInstance APIs. Unlike ECS services,
- * RDS instances are directly started/stopped rather than scaled.
+ * This handler manages the lifecycle of RDS DB Instances using a "fire-and-forget"
+ * approach. RDS start/stop operations take 5-10 minutes to complete, which would
+ * exceed Lambda timeout limits if we waited for completion.
+ *
+ * Instead, the handler:
+ * 1. Sends the start/stop command
+ * 2. Waits briefly (configurable, default 60s) to confirm state transition began
+ * 3. Sends notification indicating operation is "in progress"
+ * 4. Returns immediately, allowing subsequent operations (e.g., ECS) to proceed
  */
 
-const RDS_DEFAULT_TIMEOUT_SECONDS = 900; // 15 minutes
+/**
+ * Default seconds to wait after sending RDS command before returning.
+ * This brief wait confirms the operation has begun (status changes to 'starting' or 'stopping').
+ */
+const RDS_DEFAULT_WAIT_AFTER_COMMAND = 60;
 
 export class RDSInstanceHandler implements ResourceHandler {
   private rdsClient: RDSClient;
@@ -119,14 +129,25 @@ export class RDSInstanceHandler implements ResourceHandler {
   }
 
   /**
-   * Stop the RDS DB Instance.
+   * Stop the RDS DB Instance using fire-and-forget approach.
    *
    * This operation is idempotent - if the instance is already stopped or stopping,
    * it returns success without making changes.
    *
-   * @returns HandlerResult indicating success or failure
+   * The handler does NOT wait for the instance to fully stop (5-10 minutes).
+   * Instead, it waits briefly to confirm the state transition has begun,
+   * then returns immediately.
+   *
+   * @returns HandlerResult indicating the command was sent (not that stop completed)
    */
   async stop(): Promise<HandlerResult> {
+    const defaults = getResourceDefaults(
+      this.config,
+      this.resource.resourceType
+    ) as RDSResourceDefaults;
+    const waitAfterCommand = defaults.waitAfterCommand ?? RDS_DEFAULT_WAIT_AFTER_COMMAND;
+    const skipSnapshot = defaults.skipSnapshot ?? true;
+
     try {
       // 1. Get current status
       const currentStatus = await this.getStatus();
@@ -135,6 +156,7 @@ export class RDSInstanceHandler implements ResourceHandler {
         {
           db_instance: this.dbInstanceIdentifier,
           current_status: currentStatus.status,
+          skipSnapshot,
         },
         'Attempting to stop DB instance'
       );
@@ -178,40 +200,67 @@ export class RDSInstanceHandler implements ResourceHandler {
         };
       }
 
-      // 4. Stop the DB instance
-      await this.rdsClient.send(
-        new StopDBInstanceCommand({
-          DBInstanceIdentifier: this.dbInstanceIdentifier,
-        })
-      );
+      // 4. Build stop command with optional snapshot
+      const stopParams: { DBInstanceIdentifier: string; DBSnapshotIdentifier?: string } = {
+        DBInstanceIdentifier: this.dbInstanceIdentifier,
+      };
+
+      if (!skipSnapshot) {
+        // Generate snapshot identifier: lights-out-{instance-id}-{timestamp}
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        stopParams.DBSnapshotIdentifier = `lights-out-${this.dbInstanceIdentifier}-${timestamp}`;
+        this.logger.info(
+          {
+            db_instance: this.dbInstanceIdentifier,
+            snapshot_id: stopParams.DBSnapshotIdentifier,
+          },
+          'Creating snapshot before stopping DB instance'
+        );
+      }
+
+      // 5. Stop the DB instance
+      await this.rdsClient.send(new StopDBInstanceCommand(stopParams));
 
       this.logger.info(
         {
           db_instance: this.dbInstanceIdentifier,
+          skipSnapshot,
         },
         'Issued stop command for DB instance'
       );
 
-      // 5. Wait for stopped if configured
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
-      if (defaults.waitForStable) {
-        const timeout = (defaults.stableTimeoutSeconds as number) ?? RDS_DEFAULT_TIMEOUT_SECONDS;
-        this.logger.info(
+      // 6. Wait briefly to confirm state transition has begun
+      this.logger.info(
+        {
+          db_instance: this.dbInstanceIdentifier,
+          waitSeconds: waitAfterCommand,
+        },
+        `Waiting ${waitAfterCommand}s to confirm stop operation started`
+      );
+      await setTimeout(waitAfterCommand * 1000);
+
+      // 7. Check current status to confirm transition started
+      const newStatus = await this.getStatus();
+      const transitionStarted = newStatus.status === 'stopping' || newStatus.status === 'stopped';
+
+      if (!transitionStarted) {
+        this.logger.warn(
           {
             db_instance: this.dbInstanceIdentifier,
-            timeout,
+            expected: 'stopping',
+            actual: newStatus.status,
           },
-          `Waiting for DB instance to stop (timeout: ${timeout}s)`
+          'DB instance status did not change to stopping as expected'
         );
-        await this.waitForStopped(timeout);
       }
 
+      // 8. Build result - note this is "in progress", not completed
       const result: HandlerResult = {
         success: true,
         action: 'stop',
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: `DB instance stopped (was ${String(currentStatus.status)})`,
+        message: `DB instance stop initiated (status: ${String(newStatus.status)}, was: ${String(currentStatus.status)}). Full stop takes ~5-10 minutes.`,
         previousState: currentStatus,
         triggerSource: this.triggerSource,
       };
@@ -246,14 +295,24 @@ export class RDSInstanceHandler implements ResourceHandler {
   }
 
   /**
-   * Start the RDS DB Instance.
+   * Start the RDS DB Instance using fire-and-forget approach.
    *
    * This operation is idempotent - if the instance is already available or starting,
    * it returns success without making changes.
    *
-   * @returns HandlerResult indicating success or failure
+   * The handler does NOT wait for the instance to fully start (5-10 minutes).
+   * Instead, it waits briefly to confirm the state transition has begun,
+   * then returns immediately.
+   *
+   * @returns HandlerResult indicating the command was sent (not that start completed)
    */
   async start(): Promise<HandlerResult> {
+    const defaults = getResourceDefaults(
+      this.config,
+      this.resource.resourceType
+    ) as RDSResourceDefaults;
+    const waitAfterCommand = defaults.waitAfterCommand ?? RDS_DEFAULT_WAIT_AFTER_COMMAND;
+
     try {
       // 1. Get current status
       const currentStatus = await this.getStatus();
@@ -319,26 +378,38 @@ export class RDSInstanceHandler implements ResourceHandler {
         'Issued start command for DB instance'
       );
 
-      // 5. Wait for available if configured
-      const defaults = getResourceDefaults(this.config, this.resource.resourceType);
-      if (defaults.waitForStable) {
-        const timeout = (defaults.stableTimeoutSeconds as number) ?? RDS_DEFAULT_TIMEOUT_SECONDS;
-        this.logger.info(
+      // 5. Wait briefly to confirm state transition has begun
+      this.logger.info(
+        {
+          db_instance: this.dbInstanceIdentifier,
+          waitSeconds: waitAfterCommand,
+        },
+        `Waiting ${waitAfterCommand}s to confirm start operation started`
+      );
+      await setTimeout(waitAfterCommand * 1000);
+
+      // 6. Check current status to confirm transition started
+      const newStatus = await this.getStatus();
+      const transitionStarted = newStatus.status === 'starting' || newStatus.status === 'available';
+
+      if (!transitionStarted) {
+        this.logger.warn(
           {
             db_instance: this.dbInstanceIdentifier,
-            timeout,
+            expected: 'starting',
+            actual: newStatus.status,
           },
-          `Waiting for DB instance to become available (timeout: ${timeout}s)`
+          'DB instance status did not change to starting as expected'
         );
-        await this.waitForAvailable(timeout);
       }
 
+      // 7. Build result - note this is "in progress", not completed
       const result: HandlerResult = {
         success: true,
         action: 'start',
         resourceType: this.resource.resourceType,
         resourceId: this.resource.resourceId,
-        message: `DB instance started (was ${String(currentStatus.status)})`,
+        message: `DB instance start initiated (status: ${String(newStatus.status)}, was: ${String(currentStatus.status)}). Full start takes ~5-10 minutes.`,
         previousState: currentStatus,
         triggerSource: this.triggerSource,
       };
@@ -406,94 +477,6 @@ export class RDSInstanceHandler implements ResourceHandler {
       );
       return false;
     }
-  }
-
-  /**
-   * Wait for the RDS DB Instance to reach 'available' state.
-   *
-   * Uses AWS SDK waiter to poll the instance status until it becomes available.
-   *
-   * @param timeout - Maximum wait time in seconds
-   * @throws Error if instance does not become available within timeout
-   */
-  private async waitForAvailable(timeout: number = RDS_DEFAULT_TIMEOUT_SECONDS): Promise<void> {
-    this.logger.debug(
-      {
-        db_instance: this.dbInstanceIdentifier,
-        timeout,
-      },
-      'Starting waiter for DB instance availability'
-    );
-
-    await waitUntilDBInstanceAvailable(
-      {
-        client: this.rdsClient,
-        maxWaitTime: timeout,
-        minDelay: 30, // RDS instances take longer to start
-        maxDelay: 30,
-      },
-      {
-        DBInstanceIdentifier: this.dbInstanceIdentifier,
-      }
-    );
-
-    this.logger.info(
-      {
-        db_instance: this.dbInstanceIdentifier,
-      },
-      'DB instance reached available state'
-    );
-  }
-
-  /**
-   * Wait for the RDS DB Instance to reach 'stopped' state.
-   *
-   * Custom polling implementation since AWS SDK does not provide a stopped waiter.
-   *
-   * @param timeout - Maximum wait time in seconds
-   * @throws Error if instance does not stop within timeout
-   */
-  private async waitForStopped(timeout: number = 600): Promise<void> {
-    this.logger.debug(
-      {
-        db_instance: this.dbInstanceIdentifier,
-        timeout,
-      },
-      'Starting waiter for DB instance to stop'
-    );
-
-    const startTime = Date.now();
-    const pollingInterval = 30000; // 30 seconds
-
-    while (Date.now() - startTime < timeout * 1000) {
-      const status = await this.getStatus();
-
-      if (status.status === 'stopped') {
-        this.logger.info(
-          {
-            db_instance: this.dbInstanceIdentifier,
-          },
-          'DB instance reached stopped state'
-        );
-        return;
-      }
-
-      if (status.status !== 'stopping' && status.status !== 'stopped') {
-        throw new Error(`Unexpected DB instance status during stop: ${String(status.status)}`);
-      }
-
-      this.logger.debug(
-        {
-          db_instance: this.dbInstanceIdentifier,
-          status: status.status,
-        },
-        'DB instance still stopping, continuing to wait'
-      );
-
-      await setTimeout(pollingInterval);
-    }
-
-    throw new Error(`Timeout waiting for DB instance to stop after ${timeout} seconds`);
   }
 
   /**

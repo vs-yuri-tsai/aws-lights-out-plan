@@ -130,6 +130,58 @@ resource_defaults:
 
 **運作機制：** Lambda 在執行時會動態偵測 service 是否有 Auto Scaling，並根據配置中是否提供 `minCapacity`/`maxCapacity` 來決定使用哪種 API。
 
+## RDS Instance 配置
+
+**問題：** RDS 啟動/停止需要 5-10 分鐘完成，會超過 Lambda timeout 限制（通常設定 5-15 分鐘）。
+
+**解決方案：Fire-and-Forget 模式**
+
+Handler 採用「發送命令後短暫等待即返回」的策略：
+
+1. 發送 `StartDBInstance` 或 `StopDBInstance` 命令
+2. 等待 `waitAfterCommand` 秒（預設 60 秒）確認狀態轉換已開始
+3. 發送 Teams 通知（標註為「進行中」而非「已完成」）
+4. 立即返回，讓後續 ECS 操作可以接續執行
+
+**配置參數：**
+
+| 參數               | 類型    | 預設值 | 說明                                   |
+| ------------------ | ------- | ------ | -------------------------------------- |
+| `waitAfterCommand` | number  | 60     | 發送命令後等待秒數，確認狀態轉換已開始 |
+| `skipSnapshot`     | boolean | true   | 停止時是否跳過創建 snapshot            |
+
+**skipSnapshot 使用情境：**
+
+| 環境             | 建議值            | 原因                               |
+| ---------------- | ----------------- | ---------------------------------- |
+| Development/Test | `true`            | 每日啟停不需要備份，節省儲存成本   |
+| Staging          | `true` 或 `false` | 視資料重要性決定                   |
+| 重要資料         | `false`           | 每次停止前保留 snapshot 作為還原點 |
+
+**成本考量：** 每個 snapshot 都會產生儲存成本。對於每日 lights-out 週期，累積的 snapshot 成本可能相當可觀。
+
+**配置範例：**
+
+```yaml
+resource_defaults:
+  rds-db:
+    waitAfterCommand: 60 # 發送命令後等待 60 秒
+    skipSnapshot: true # 開發環境建議跳過 snapshot
+
+
+  # 需要備份的環境
+  # rds-db:
+  #   waitAfterCommand: 60
+  #   skipSnapshot: false       # 每次停止前創建 snapshot
+```
+
+**Snapshot 命名規則：** 當 `skipSnapshot: false` 時，snapshot 會以 `lights-out-{instance-id}-{timestamp}` 格式命名。
+
+**Teams 通知訊息範例：**
+
+- 成功：`DB instance stop initiated (status: stopping, was: available). Full stop takes ~5-10 minutes.`
+- 失敗：`Stop operation failed`
+
 ## Known Issues & Workarounds
 
 ### Issue #1: Serverless Framework + AWS SSO Credentials ✅ RESOLVED

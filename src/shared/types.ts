@@ -255,6 +255,48 @@ export interface ECSResourceDefaults {
 }
 
 /**
+ * RDS Instance resource defaults configuration.
+ *
+ * RDS uses a "fire-and-forget" approach because start/stop operations
+ * take 5-10 minutes to complete, which would exceed Lambda timeout limits.
+ *
+ * The handler sends the command, waits briefly to confirm the state transition
+ * has begun, then returns without waiting for completion.
+ */
+export interface RDSResourceDefaults {
+  /**
+   * Seconds to wait after sending start/stop command before returning.
+   * This brief wait confirms the operation has begun (status changes to 'starting' or 'stopping').
+   * Default: 60 seconds.
+   *
+   * @example 60 - Wait 1 minute after command
+   */
+  waitAfterCommand?: number;
+
+  /**
+   * Whether to skip creating a DB snapshot when stopping the instance.
+   * Default: true (no snapshot created).
+   *
+   * When false, a snapshot is created before stopping with auto-generated identifier:
+   * `lights-out-{instance-id}-{timestamp}`
+   *
+   * **Use Cases:**
+   * | Environment        | Recommended | Reason                                      |
+   * |--------------------|-------------|---------------------------------------------|
+   * | Development/Test   | true        | Daily stop/start doesn't need backups       |
+   * | Staging            | true/false  | Depends on data importance                  |
+   * | Critical data      | false       | Snapshot as restore point before each stop  |
+   *
+   * **Cost consideration:** Each snapshot incurs storage costs.
+   * For daily lights-out cycles, this can accumulate quickly.
+   *
+   * @example true - Skip snapshot (recommended for dev environments)
+   * @example false - Create snapshot before each stop
+   */
+  skipSnapshot?: boolean;
+}
+
+/**
  * Configuration from SSM Parameter Store.
  */
 /**
