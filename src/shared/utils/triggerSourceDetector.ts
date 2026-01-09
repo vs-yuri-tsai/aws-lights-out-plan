@@ -32,13 +32,13 @@ export async function detectTriggerSource(
   event: LambdaEvent,
   context: Context
 ): Promise<TriggerSource> {
-  // 1. Check if event already contains trigger source (e.g., from Teams Bot)
+  // 1. Check if event already contains trigger source (e.g., from Teams Bot and EventBridge input)
   if (event.triggerSource) {
     logger.debug({ triggerSource: event.triggerSource }, 'Using trigger source from event');
     return event.triggerSource;
   }
 
-  // 2. Check if triggered by EventBridge
+  // 2. Check if triggered by native EventBridge event
   const detailType = event['detail-type'];
   if (
     event.source === 'aws.events' &&

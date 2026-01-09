@@ -68,6 +68,13 @@ functions:
           rate: cron(${file(config/${self:custom.configPath}):schedules_cron.start.expression})
           input:
             action: start
+            triggerSource:
+              type: eventbridge-scheduled
+              identity:
+                Fn::Sub: 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${self:service}-${self:provider.stage}-start'
+              displayName: ${self:service}-${self:provider.stage}-start
+              metadata:
+                eventDetailType: Scheduled Event
           enabled: ${file(config/${self:custom.configPath}):schedules_cron.start.enabled}
       - schedule:
           name: ${self:service}-${self:provider.stage}-stop
@@ -75,6 +82,13 @@ functions:
           rate: cron(${file(config/${self:custom.configPath}):schedules_cron.stop.expression})
           input:
             action: stop
+            triggerSource:
+              type: eventbridge-scheduled
+              identity:
+                Fn::Sub: 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${self:service}-${self:provider.stage}-stop'
+              displayName: ${self:service}-${self:provider.stage}-stop
+              metadata:
+                eventDetailType: Scheduled Event
           enabled: ${file(config/${self:custom.configPath}):schedules_cron.stop.enabled}
 
 custom:

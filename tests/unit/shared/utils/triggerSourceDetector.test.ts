@@ -35,6 +35,52 @@ describe('triggerSourceDetector', () => {
   });
 
   describe('EventBridge scheduled event', () => {
+    it('should use pre-provided triggerSource from Serverless Framework schedule input (start)', async () => {
+      const event: LambdaEvent = {
+        action: 'start',
+        triggerSource: {
+          type: 'eventbridge-scheduled',
+          identity: 'arn:aws:events:us-east-1:123456789012:rule/lights-out-pg-development-start',
+          displayName: 'lights-out-pg-development-start',
+          metadata: {
+            eventDetailType: 'Scheduled Event',
+          },
+        },
+      };
+
+      const result = await detectTriggerSource(event, mockContext);
+
+      expect(result.type).toBe('eventbridge-scheduled');
+      expect(result.displayName).toBe('lights-out-pg-development-start');
+      expect(result.identity).toBe(
+        'arn:aws:events:us-east-1:123456789012:rule/lights-out-pg-development-start'
+      );
+      expect(result.metadata?.eventDetailType).toBe('Scheduled Event');
+    });
+
+    it('should use pre-provided triggerSource from Serverless Framework schedule input (stop)', async () => {
+      const event: LambdaEvent = {
+        action: 'stop',
+        triggerSource: {
+          type: 'eventbridge-scheduled',
+          identity: 'arn:aws:events:us-east-1:123456789012:rule/lights-out-pg-development-stop',
+          displayName: 'lights-out-pg-development-stop',
+          metadata: {
+            eventDetailType: 'Scheduled Event',
+          },
+        },
+      };
+
+      const result = await detectTriggerSource(event, mockContext);
+
+      expect(result.type).toBe('eventbridge-scheduled');
+      expect(result.displayName).toBe('lights-out-pg-development-stop');
+      expect(result.identity).toBe(
+        'arn:aws:events:us-east-1:123456789012:rule/lights-out-pg-development-stop'
+      );
+      expect(result.metadata?.eventDetailType).toBe('Scheduled Event');
+    });
+
     it('should detect EventBridge scheduled trigger with rule ARN', async () => {
       const event: LambdaEvent = {
         action: 'start',
