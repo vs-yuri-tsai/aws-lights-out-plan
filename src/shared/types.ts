@@ -187,6 +187,10 @@ export interface HandlerResult {
    * Trigger source metadata (passed to Teams notifier).
    */
   triggerSource?: TriggerSource;
+  /**
+   * AWS region where the resource is located (extracted from ARN).
+   */
+  region?: string;
 }
 
 /**
@@ -344,6 +348,30 @@ export interface OrchestrationResult {
   succeeded: number;
   failed: number;
   results: HandlerResult[];
+}
+
+/**
+ * Aggregated resource group for Teams notification.
+ * Groups resources of the same type with their IDs and message.
+ */
+export interface AggregatedResourceGroup {
+  resourceType: string;
+  resourceIds: string[];
+  message: string;
+}
+
+/**
+ * Aggregated notification payload for Teams.
+ * Used to send a single notification for multiple resources.
+ */
+export interface AggregatedNotificationPayload {
+  success: boolean;
+  action: string;
+  environment: string;
+  triggerSource?: TriggerSource;
+  region: string;
+  resourceGroups: AggregatedResourceGroup[];
+  timestamp: string;
 }
 
 /**

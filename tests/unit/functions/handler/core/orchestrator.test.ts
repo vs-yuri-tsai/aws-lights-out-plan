@@ -13,31 +13,34 @@ import type { Config, DiscoveredResource, HandlerResult, ResourceHandler } from 
 // ============================================================================
 
 // Create mock functions that will be hoisted
-const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock } = vi.hoisted(() => {
-  const mockDiscoverFn = vi.fn();
-  const mockGetHandlerFn = vi.fn();
+const { mockDiscoverFn, mockGetHandlerFn, TagDiscoveryMock, mockSendAggregatedTeamsNotification } =
+  vi.hoisted(() => {
+    const mockDiscoverFn = vi.fn();
+    const mockGetHandlerFn = vi.fn();
+    const mockSendAggregatedTeamsNotification = vi.fn();
 
-  // Mock the TagDiscovery class constructor using vi.fn() as the constructor
-  const MockTagDiscoveryConstructor = vi.fn(function (
-    this: { discover: typeof mockDiscoverFn },
-    _tagFilters: Record<string, string>,
-    _resourceTypes: string[],
-    _regions?: string[]
-  ) {
-    // Assign the hoisted mock function to the 'discover' method of the instance
-    this.discover = mockDiscoverFn;
-    // You can also store constructor arguments if needed for assertions on the instance itself
-    // this.tagFilters = tagFilters;
-    // this.resourceTypes = resourceTypes;
-    // this.regions = regions;
+    // Mock the TagDiscovery class constructor using vi.fn() as the constructor
+    const MockTagDiscoveryConstructor = vi.fn(function (
+      this: { discover: typeof mockDiscoverFn },
+      _tagFilters: Record<string, string>,
+      _resourceTypes: string[],
+      _regions?: string[]
+    ) {
+      // Assign the hoisted mock function to the 'discover' method of the instance
+      this.discover = mockDiscoverFn;
+      // You can also store constructor arguments if needed for assertions on the instance itself
+      // this.tagFilters = tagFilters;
+      // this.resourceTypes = resourceTypes;
+      // this.regions = regions;
+    });
+
+    return {
+      mockDiscoverFn,
+      mockGetHandlerFn,
+      TagDiscoveryMock: MockTagDiscoveryConstructor, // Export the vi.fn() as the constructor
+      mockSendAggregatedTeamsNotification,
+    };
   });
-
-  return {
-    mockDiscoverFn,
-    mockGetHandlerFn,
-    TagDiscoveryMock: MockTagDiscoveryConstructor, // Export the vi.fn() as the constructor
-  };
-});
 
 // Mock the modules using hoisted factories
 vi.mock('@functions/handler/discovery/tagDiscovery', () => ({
@@ -55,6 +58,10 @@ vi.mock('@shared/utils/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+}));
+
+vi.mock('@shared/utils/teamsNotifier', () => ({
+  sendAggregatedTeamsNotification: mockSendAggregatedTeamsNotification,
 }));
 
 // Import AFTER mocks are defined
@@ -1036,6 +1043,318 @@ describe('Orchestrator', () => {
       const group1MaxTimestamp = Math.max(...group1Timestamps);
 
       expect(group2Timestamp).toBeGreaterThan(group1MaxTimestamp);
+    });
+  });
+
+  describe('aggregated notifications', () => {
+    it('should call sendAggregatedTeamsNotification after run completes', async () => {
+      const configWithTeams: Config = {
+        ...sampleConfig,
+        notifications: {
+          teams: {
+            enabled: true,
+            webhook_url: 'https://example.com/webhook',
+          },
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithTeams);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
+          resourceId: 'c/s',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c' },
+        },
+      ];
+
+      const mockStartFn = vi.fn().mockResolvedValue({
+        success: true,
+        action: 'start',
+        resourceType: 'ecs-service',
+        resourceId: 'c/s',
+        message: 'Started successfully',
+        region: 'us-east-1',
+      } as HandlerResult);
+
+      const mockHandler: Partial<ResourceHandler> = {
+        start: mockStartFn,
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+      mockSendAggregatedTeamsNotification.mockResolvedValue(undefined);
+
+      await orchestrator.run('start');
+
+      expect(mockSendAggregatedTeamsNotification).toHaveBeenCalledTimes(1);
+      expect(mockSendAggregatedTeamsNotification).toHaveBeenCalledWith(
+        configWithTeams.notifications!.teams,
+        expect.arrayContaining([
+          expect.objectContaining({
+            success: true,
+            action: 'start',
+            resourceType: 'ecs-service',
+          }),
+        ]),
+        'test',
+        'start',
+        undefined // triggerSource
+      );
+    });
+
+    it('should not call notification when Teams is not configured', async () => {
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
+          resourceId: 'c/s',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c' },
+        },
+      ];
+
+      const mockStartFn = vi.fn().mockResolvedValue({
+        success: true,
+        action: 'start',
+        resourceType: 'ecs-service',
+        resourceId: 'c/s',
+        message: 'Started successfully',
+      } as HandlerResult);
+
+      const mockHandler: Partial<ResourceHandler> = {
+        start: mockStartFn,
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+
+      await orchestrator.run('start');
+
+      expect(mockSendAggregatedTeamsNotification).not.toHaveBeenCalled();
+    });
+
+    it('should not call notification when Teams is disabled', async () => {
+      const configWithDisabledTeams: Config = {
+        ...sampleConfig,
+        notifications: {
+          teams: {
+            enabled: false,
+            webhook_url: 'https://example.com/webhook',
+          },
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithDisabledTeams);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
+          resourceId: 'c/s',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c' },
+        },
+      ];
+
+      const mockStartFn = vi.fn().mockResolvedValue({
+        success: true,
+        action: 'start',
+        resourceType: 'ecs-service',
+        resourceId: 'c/s',
+        message: 'Started successfully',
+      } as HandlerResult);
+
+      const mockHandler: Partial<ResourceHandler> = {
+        start: mockStartFn,
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+
+      await orchestrator.run('start');
+
+      expect(mockSendAggregatedTeamsNotification).not.toHaveBeenCalled();
+    });
+
+    it('should not throw if notification fails', async () => {
+      const configWithTeams: Config = {
+        ...sampleConfig,
+        notifications: {
+          teams: {
+            enabled: true,
+            webhook_url: 'https://example.com/webhook',
+          },
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithTeams);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
+          resourceId: 'c/s',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c' },
+        },
+      ];
+
+      const mockStartFn = vi.fn().mockResolvedValue({
+        success: true,
+        action: 'start',
+        resourceType: 'ecs-service',
+        resourceId: 'c/s',
+        message: 'Started successfully',
+      } as HandlerResult);
+
+      const mockHandler: Partial<ResourceHandler> = {
+        start: mockStartFn,
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+      mockSendAggregatedTeamsNotification.mockRejectedValue(new Error('Webhook timeout'));
+
+      // Should not throw, orchestration should complete successfully
+      const result = await orchestrator.run('start');
+
+      expect(result.succeeded).toBe(1);
+      expect(result.failed).toBe(0);
+      expect(mockSendAggregatedTeamsNotification).toHaveBeenCalled();
+    });
+
+    it('should not call notification for status action even when Teams is enabled', async () => {
+      const configWithTeams: Config = {
+        ...sampleConfig,
+        notifications: {
+          teams: {
+            enabled: true,
+            webhook_url: 'https://example.com/webhook',
+          },
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithTeams);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c/s',
+          resourceId: 'c/s',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c' },
+        },
+      ];
+
+      const mockGetStatusFn = vi.fn().mockResolvedValue({
+        desired_count: 1,
+        running_count: 1,
+        status: 'ACTIVE',
+      });
+
+      const mockHandler: Partial<ResourceHandler> = {
+        getStatus: mockGetStatusFn,
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn.mockReturnValue(mockHandler as ResourceHandler);
+
+      const result = await orchestrator.run('status');
+
+      expect(result.succeeded).toBe(1);
+      expect(result.failed).toBe(0);
+      // Notification should NOT be called for status action
+      expect(mockSendAggregatedTeamsNotification).not.toHaveBeenCalled();
+    });
+
+    it('should pass all handler results to notification', async () => {
+      const configWithTeams: Config = {
+        ...sampleConfig,
+        notifications: {
+          teams: {
+            enabled: true,
+            webhook_url: 'https://example.com/webhook',
+          },
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithTeams);
+
+      const mockResources: DiscoveredResource[] = [
+        {
+          resourceType: 'ecs-service',
+          arn: 'arn:aws:ecs:us-east-1:123456:service/c1/s1',
+          resourceId: 'c1/s1',
+          priority: 50,
+          group: 'default',
+          tags: {},
+          metadata: { cluster_name: 'c1' },
+        },
+        {
+          resourceType: 'rds-db',
+          arn: 'arn:aws:rds:us-east-1:123456:db:db1',
+          resourceId: 'db1',
+          priority: 100,
+          group: 'default',
+          tags: {},
+          metadata: {},
+        },
+      ];
+
+      const successHandler: Partial<ResourceHandler> = {
+        start: vi.fn().mockResolvedValue({
+          success: true,
+          action: 'start',
+          resourceType: 'ecs-service',
+          resourceId: 'c1/s1',
+          message: 'Started',
+          region: 'us-east-1',
+        } as HandlerResult),
+      };
+
+      const failHandler: Partial<ResourceHandler> = {
+        start: vi.fn().mockResolvedValue({
+          success: false,
+          action: 'start',
+          resourceType: 'rds-db',
+          resourceId: 'db1',
+          message: 'Failed to start',
+          error: 'Database is in invalid state',
+          region: 'us-east-1',
+        } as HandlerResult),
+      };
+
+      mockDiscoverFn.mockResolvedValue(mockResources);
+      mockGetHandlerFn
+        .mockReturnValueOnce(successHandler as ResourceHandler)
+        .mockReturnValueOnce(failHandler as ResourceHandler);
+      mockSendAggregatedTeamsNotification.mockResolvedValue(undefined);
+
+      await orchestrator.run('start');
+
+      expect(mockSendAggregatedTeamsNotification).toHaveBeenCalledWith(
+        configWithTeams.notifications!.teams,
+        expect.arrayContaining([
+          expect.objectContaining({ success: true, resourceType: 'ecs-service' }),
+          expect.objectContaining({ success: false, resourceType: 'rds-db' }),
+        ]),
+        'test',
+        'start',
+        undefined
+      );
     });
   });
 });

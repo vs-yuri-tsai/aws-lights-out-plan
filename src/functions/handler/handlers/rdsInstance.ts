@@ -22,7 +22,6 @@ import type {
   RDSResourceDefaults,
 } from '@shared/types';
 import { setupLogger } from '@shared/utils/logger';
-import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
 import { getResourceDefaults } from './base';
 
 /**
@@ -50,6 +49,7 @@ export class RDSInstanceHandler implements ResourceHandler {
   private dbInstanceIdentifier: string;
   private logger: Logger;
   private triggerSource?: TriggerSource;
+  private region?: string;
 
   constructor(
     private resource: DiscoveredResource,
@@ -62,16 +62,15 @@ export class RDSInstanceHandler implements ResourceHandler {
 
     // Extract region from ARN (format: arn:aws:rds:REGION:account:db:instance-id)
     // Falls back to AWS_DEFAULT_REGION environment variable if not in ARN
-    let region: string | undefined;
     if (resource.arn?.startsWith('arn:aws:')) {
       const arnParts = resource.arn.split(':');
       if (arnParts.length >= 4) {
-        region = arnParts[3];
+        this.region = arnParts[3];
       }
     }
 
     // Initialize RDS client with region
-    this.rdsClient = new RDSClient({ region });
+    this.rdsClient = new RDSClient({ region: this.region });
 
     // Extract DB instance identifier from ARN or resource_id
     // ARN format: arn:aws:rds:region:account:db:instance-id
@@ -263,10 +262,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: `DB instance stop initiated (status: ${String(newStatus.status)}, was: ${String(currentStatus.status)}). Full stop takes ~5-10 minutes.`,
         previousState: currentStatus,
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification if configured
-      await this.sendNotification(result);
 
       return result;
     } catch (error) {
@@ -285,10 +282,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: 'Stop operation failed',
         error: error instanceof Error ? error.message : String(error),
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification for failure
-      await this.sendNotification(result);
 
       return result;
     }
@@ -412,10 +407,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: `DB instance start initiated (status: ${String(newStatus.status)}, was: ${String(currentStatus.status)}). Full start takes ~5-10 minutes.`,
         previousState: currentStatus,
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification if configured
-      await this.sendNotification(result);
 
       return result;
     } catch (error) {
@@ -434,10 +427,8 @@ export class RDSInstanceHandler implements ResourceHandler {
         message: 'Start operation failed',
         error: error instanceof Error ? error.message : String(error),
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification for failure
-      await this.sendNotification(result);
 
       return result;
     }
@@ -476,34 +467,6 @@ export class RDSInstanceHandler implements ResourceHandler {
         'Failed to check if DB instance is ready'
       );
       return false;
-    }
-  }
-
-  /**
-   * Send Teams notification if configured.
-   *
-   * @param result - Handler operation result
-   */
-  private async sendNotification(result: HandlerResult): Promise<void> {
-    const teamsConfig = this.config.notifications?.teams;
-
-    if (!teamsConfig) {
-      this.logger.debug('Teams notifications not configured, skipping');
-      return;
-    }
-
-    try {
-      await sendTeamsNotification(teamsConfig, result, this.config.environment);
-    } catch (error) {
-      // Log but don't throw - notification failure should not affect the main operation
-      this.logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          action: result.action,
-          resourceType: result.resourceType,
-        },
-        'Failed to send Teams notification'
-      );
     }
   }
 }

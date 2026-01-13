@@ -28,7 +28,6 @@ import type {
   TriggerSource,
 } from '@shared/types';
 import { setupLogger } from '@shared/utils/logger';
-import { sendTeamsNotification } from '@shared/utils/teamsNotifier';
 import { getResourceDefaults } from './base';
 
 /**
@@ -47,6 +46,7 @@ export class ECSServiceHandler implements ResourceHandler {
   private serviceName: string;
   private logger: Logger;
   private triggerSource?: TriggerSource;
+  private region?: string;
 
   constructor(
     private resource: DiscoveredResource,
@@ -59,19 +59,18 @@ export class ECSServiceHandler implements ResourceHandler {
 
     // Extract region from ARN (format: arn:aws:ecs:REGION:account:...)
     // Falls back to AWS_DEFAULT_REGION environment variable if not in ARN
-    let region: string | undefined;
     if (resource.arn?.startsWith('arn:aws:')) {
       const arnParts = resource.arn.split(':');
       if (arnParts.length >= 4) {
-        region = arnParts[3];
+        this.region = arnParts[3];
       }
     }
 
     // Initialize ECS client with region
-    this.ecsClient = new ECSClient({ region });
+    this.ecsClient = new ECSClient({ region: this.region });
 
     // Initialize Application Auto Scaling client with same region
-    this.autoScalingClient = new ApplicationAutoScalingClient({ region });
+    this.autoScalingClient = new ApplicationAutoScalingClient({ region: this.region });
 
     // Extract cluster and service names from resource
     this.clusterName = (resource.metadata.cluster_name as string) ?? 'default';
@@ -367,10 +366,8 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service stopped via Auto Scaling (min=${minCapacity}, max=${maxCapacity}, desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
           triggerSource: this.triggerSource,
+          region: this.region,
         };
-
-        // Send Teams notification if configured
-        await this.sendNotification(result);
 
         return result;
       } else {
@@ -397,10 +394,8 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service stopped (desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
           triggerSource: this.triggerSource,
+          region: this.region,
         };
-
-        // Send Teams notification if configured
-        await this.sendNotification(result);
 
         return result;
       }
@@ -417,10 +412,8 @@ export class ECSServiceHandler implements ResourceHandler {
         message: 'Stop operation failed',
         error: error instanceof Error ? error.message : String(error),
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification for failure
-      await this.sendNotification(result);
 
       return result;
     }
@@ -503,10 +496,8 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service started via Auto Scaling (min=${minCapacity}, max=${maxCapacity}, desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
           triggerSource: this.triggerSource,
+          region: this.region,
         };
-
-        // Send Teams notification if configured
-        await this.sendNotification(result);
 
         return result;
       } else {
@@ -533,10 +524,8 @@ export class ECSServiceHandler implements ResourceHandler {
           message: `Service started (desired=${desiredCount}, was ${currentStatus.desired_count as number})`,
           previousState: currentStatus,
           triggerSource: this.triggerSource,
+          region: this.region,
         };
-
-        // Send Teams notification if configured
-        await this.sendNotification(result);
 
         return result;
       }
@@ -553,10 +542,8 @@ export class ECSServiceHandler implements ResourceHandler {
         message: 'Start operation failed',
         error: error instanceof Error ? error.message : String(error),
         triggerSource: this.triggerSource,
+        region: this.region,
       };
-
-      // Send Teams notification for failure
-      await this.sendNotification(result);
 
       return result;
     }
@@ -644,33 +631,5 @@ export class ECSServiceHandler implements ResourceHandler {
       },
       'Service reached stable state'
     );
-  }
-
-  /**
-   * Send Teams notification if configured.
-   *
-   * @param result - Handler operation result
-   */
-  private async sendNotification(result: HandlerResult): Promise<void> {
-    const teamsConfig = this.config.notifications?.teams;
-
-    if (!teamsConfig) {
-      this.logger.debug('Teams notifications not configured, skipping');
-      return;
-    }
-
-    try {
-      await sendTeamsNotification(teamsConfig, result, this.config.environment);
-    } catch (error) {
-      // Log but don't throw - notification failure should not affect the main operation
-      this.logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          action: result.action,
-          resourceType: result.resourceType,
-        },
-        'Failed to send Teams notification'
-      );
-    }
   }
 }

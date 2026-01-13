@@ -17,6 +17,7 @@ import type {
 import { TagDiscovery } from '../discovery/tagDiscovery';
 import { getHandler } from '../handlers/factory';
 import { setupLogger } from '@shared/utils/logger';
+import { sendAggregatedTeamsNotification } from '@shared/utils/teamsNotifier';
 
 const logger = setupLogger('lights-out:orchestrator');
 
@@ -117,9 +118,45 @@ export class Orchestrator {
       results,
     };
 
+    // Send aggregated Teams notification (only for start/stop actions)
+    if (action === 'start' || action === 'stop') {
+      await this.sendAggregatedNotifications(action, results);
+    }
+
     logger.info(summary, 'Orchestration completed');
 
     return summary;
+  }
+
+  /**
+   * Send aggregated Teams notifications for all handler results.
+   *
+   * @param action - The action performed (start/stop)
+   * @param results - Array of handler results
+   */
+  private async sendAggregatedNotifications(
+    action: LambdaAction,
+    results: HandlerResult[]
+  ): Promise<void> {
+    const teamsConfig = this.config.notifications?.teams;
+
+    if (!teamsConfig?.enabled) {
+      logger.debug('Teams notifications not configured or disabled');
+      return;
+    }
+
+    try {
+      await sendAggregatedTeamsNotification(
+        teamsConfig,
+        results,
+        this.config.environment,
+        action,
+        this.triggerSource
+      );
+    } catch (error) {
+      logger.error({ error: String(error) }, 'Failed to send aggregated Teams notification');
+      // Don't throw - notification failure should not affect the main operation
+    }
   }
 
   /**

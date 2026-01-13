@@ -55,3 +55,6 @@ response.json
 
 # Worktrees
 worktrees/
+
+# Claude settings
+.claude/settings.local.json
