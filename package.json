@@ -1,6 +1,6 @@
 {
   "name": "aws-lights-out-plan",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "自動在非工作時間關閉 AWS 開發環境資源（ECS Service 等）以節省成本",
   "main": "index.js",
   "engines": {
