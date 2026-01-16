@@ -58,34 +58,32 @@ curl -X POST "$WEBHOOK_URL" \
 
 ---
 
-## Step 2：設定 DynamoDB
+## Step 2：更新 YAML 配置
+
+### 2.1 編輯專案配置檔案
 
 ```bash
-# 使用互動式 CLI
-pnpm teams
+# 編輯對應專案的配置檔案
+# config/{account}/{project}.yml
 ```
 
-### 2.1 建立 Table
+加入 Teams 通知設定：
 
-選擇 **Setup Database**
-
+```yaml
+notifications:
+  teams:
+    enabled: true
+    webhook_url: 'https://prod-XX.logic.azure.com/...'
+    description: 'Lights Out notifications'
 ```
-? Select target › airsync-dev (us-east-1)
-? Teams Integration Management › 🔧 Setup Database
 
-✅ Table created: lights-out-teams-config
-```
+### 2.2 上傳配置到 SSM
 
-### 2.2 新增專案配置
+```bash
+pnpm config
+# 選擇目標環境 → Upload
 
-選擇 **Add Project**
-
-```
-? Project name: › airsync-dev
-? Webhook URL: › https://prod-XX.logic.azure.com/...
-? Test webhook? › Yes
-
-✅ Configuration saved!
+✅ Configuration uploaded to SSM!
 ```
 
 ---
@@ -155,17 +153,24 @@ aws logs tail /aws/lambda/lights-out-{stage}-teams-notifier \
 
 常見錯誤：
 
-- `No Teams config found for project` → 檢查 DynamoDB 配置
+- `No Teams config found for project` → 檢查 SSM 配置中的 `notifications.teams` 設定
 - `Resource missing lights-out:group tag` → 檢查資源 tags
 - `Teams webhook request failed` → 檢查 webhook URL
 
-### DynamoDB 權限錯誤
+### SSM 配置錯誤
 
-重新部署：
+確認配置已正確上傳：
 
 ```bash
-pnpm deploy
-# 選擇 All
+pnpm config
+# 選擇目標環境 → Retrieve（下載檢視）
+```
+
+重新上傳配置：
+
+```bash
+pnpm config
+# 選擇目標環境 → Upload
 ```
 
 ---
@@ -173,9 +178,10 @@ pnpm deploy
 ## 擴展到其他專案
 
 1. 在新專案的 Teams channel 建立 Workflow webhook
-2. 執行 `pnpm teams` → Add Project
-3. 為新專案的資源加上 `lights-out:group=<project-name>` tag
-4. 測試通知
+2. 在 `config/{account}/{project}.yml` 中加入 `notifications.teams` 設定
+3. 執行 `pnpm config` → Upload 上傳配置
+4. 為新專案的資源加上 `lights-out:group=<project-name>` tag
+5. 測試通知
 
 ---
 

@@ -24,8 +24,8 @@ Teams 整合讓團隊成員能在 Teams 中接收 AWS 資源狀態通知，無�
 │  └──────────┬──────────────────────────────────────────┘   │
 │             │                                               │
 │  ┌──────────▼──────────────────────────────────────────┐   │
-│  │  DynamoDB: lights-out-teams-config                  │   │
-│  │  - project → webhook_url mapping                    │   │
+│  │  SSM Parameter Store                                │   │
+│  │  - /lights-out/{stage}/config (includes webhook)    │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -39,25 +39,34 @@ Teams 整合讓團隊成員能在 Teams 中接收 AWS 資源狀態通知，無�
 3. 配置並儲存
 4. 複製 HTTP POST URL（格式：`https://prod-XX.logic.azure.com/...`）
 
-### Step 2: 設定 DynamoDB
+### Step 2: 更新配置檔案
 
-```bash
-# 使用互動式 CLI
-pnpm teams
+在專案的 YAML 配置檔案中加入 Teams webhook：
 
-# 選擇：
-# 1. Setup Database - 建立 DynamoDB table
-# 2. Add Project - 新增專案配置（輸入 webhook URL）
+```yaml
+# config/{account}/{project}.yml
+notifications:
+  teams:
+    enabled: true
+    webhook_url: 'https://prod-XX.logic.azure.com/...'
+    description: 'Lights Out notifications'
 ```
 
-### Step 3: 部署 Lambda
+### Step 3: 上傳配置
+
+```bash
+pnpm config
+# 選擇目標環境 → Upload
+```
+
+### Step 4: 部署 Lambda
 
 ```bash
 pnpm deploy
 # 選擇目標環境 → All
 ```
 
-### Step 4: 驗證
+### Step 5: 驗證
 
 手動觸發資源狀態變更，確認 Teams channel 收到通知。
 
@@ -75,15 +84,16 @@ aws ecs update-service \
 
 ## 配置說明
 
-### DynamoDB Schema
+### SSM 配置結構
 
-```json
-{
-  "project": "airsync-dev",
-  "webhook_url": "https://prod-XX.logic.azure.com/...",
-  "description": "Airsync development environment",
-  "created_at": "2026-01-05T10:00:00Z"
-}
+Teams 通知配置整合在主要的 SSM config 中：
+
+```yaml
+notifications:
+  teams:
+    enabled: true
+    webhook_url: 'https://prod-XX.logic.azure.com/...'
+    description: 'Project notifications'
 ```
 
 ### 資源 Tag 對應
@@ -91,7 +101,7 @@ aws ecs update-service \
 Teams 通知會根據資源的 tag 找到對應的專案配置：
 
 ```ini
-lights-out:group=airsync-dev    # 對應 DynamoDB 中的 project
+lights-out:group=airsync-dev    # 對應 SSM 配置中的專案
 ```
 
 ---
@@ -100,12 +110,12 @@ lights-out:group=airsync-dev    # 對應 DynamoDB 中的 project
 
 Teams 整合的 AWS 成本幾乎可忽略：
 
-| 服務               | 估算                  |
-| ------------------ | --------------------- |
-| Lambda invocations | ~$0.01/月             |
-| DynamoDB           | ~$0.00/月 (on-demand) |
-| EventBridge        | 免費                  |
-| **總計**           | **< $0.06/月**        |
+| 服務               | 估算           |
+| ------------------ | -------------- |
+| Lambda invocations | ~$0.01/月      |
+| SSM Parameter      | 免費           |
+| EventBridge        | 免費           |
+| **總計**           | **< $0.02/月** |
 
 ---
 
@@ -115,17 +125,13 @@ Teams 整合的 AWS 成本幾乎可忽略：
 
 1. 確認 Lambda 有被觸發（查看 CloudWatch Logs）
 2. 確認資源有 `lights-out:group` tag
-3. 確認 DynamoDB 中有對應的 project 配置
+3. 確認 SSM 配置中有設定 `notifications.teams`
 
 ### Webhook URL 洩漏處理
 
 1. 在 Teams Workflows 中重新產生 URL
-2. 更新 DynamoDB 配置
-
-```bash
-pnpm teams
-# 選擇 Add Project（會覆蓋現有配置）
-```
+2. 更新 YAML 配置中的 `webhook_url`
+3. 重新上傳配置：`pnpm config` → Upload
 
 ---
 
