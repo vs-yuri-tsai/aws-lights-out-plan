@@ -46,9 +46,6 @@ pnpm config
 
 # 部署
 pnpm deploy
-
-# Teams 整合設定
-pnpm teams
 ```
 
 ## 資源標籤規範

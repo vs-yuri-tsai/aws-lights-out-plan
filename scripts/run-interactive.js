@@ -8,7 +8,6 @@
  *   node scripts/run-interactive.js --mode action
  *   node scripts/run-interactive.js --mode config
  *   node scripts/run-interactive.js --mode deploy
- *   node scripts/run-interactive.js --mode teams
  */
 
 const { execSync } = require('child_process');
@@ -97,25 +96,6 @@ const MODES = {
     ],
     customCommand: true,
   },
-  teams: {
-    title: 'Teams Integration Management',
-    choices: [
-      {
-        title: '🔧 Setup Database     - Create DynamoDB table for Teams config',
-        value: 'setup-db',
-      },
-      {
-        title: '➕ Add Project        - Add or update project webhook configuration',
-        value: 'add-project',
-      },
-      {
-        title: '📋 List Projects      - Show all configured projects',
-        value: 'list-projects',
-      },
-    ],
-    customCommand: true,
-    accountScope: true, // Teams operations are account-scoped, not project-scoped
-  },
 };
 
 // Parse command line arguments
@@ -138,11 +118,11 @@ async function main() {
     const params = parseArgs();
 
     if (!params.mode || !MODES[params.mode]) {
-      console.error('❌ Invalid or missing mode. Valid modes: action, config, deploy, teams');
+      console.error('❌ Invalid or missing mode. Valid modes: action, config, deploy');
       console.error('\nUsage:');
-      console.error('  node scripts/run-interactive.js --mode <action|config|deploy|teams>');
+      console.error('  node scripts/run-interactive.js --mode <action|config|deploy>');
       console.error('\nExample:');
-      console.error('  node scripts/run-interactive.js --mode teams');
+      console.error('  node scripts/run-interactive.js --mode deploy');
       process.exit(1);
     }
 
@@ -225,36 +205,6 @@ async function main() {
         const command = `serverless deploy function -f ${functionName} --region ${region} --stage ${stage} --verbose`;
         execSync(command, { stdio: 'inherit', env });
       } 
-
-      return;
-    }
-
-    // Handle teams mode with custom commands
-    if (params.mode === 'teams') {
-      // Validate required fields for teams mode
-      if (!projectArgs.region) {
-        console.error(`❌ Missing required field: "region" in ${argFilePath}`);
-        console.error('   Please set the "region" field in your project arguments file.');
-        process.exit(1);
-      }
-
-      // Load Teams integration utilities
-      const teamsUtils = require('./teams-utils');
-
-      // Set AWS credentials environment variables
-      const env = setupAwsCredentials(projectArgs.profile);
-      console.log(''); // Empty line for spacing
-
-      const region = projectArgs.region;
-
-      // Execute the selected Teams operation
-      if (selectedValue === 'setup-db') {
-        await teamsUtils.setupDatabase(region, env);
-      } else if (selectedValue === 'add-project') {
-        await teamsUtils.addProject(region, env);
-      } else if (selectedValue === 'list-projects') {
-        await teamsUtils.listProjects(region, env);
-      }
 
       return;
     }
