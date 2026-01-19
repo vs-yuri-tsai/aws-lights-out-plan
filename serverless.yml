@@ -5,7 +5,7 @@ provider:
   # Profile is set via AWS_PROFILE environment variable (managed by run-interactive.js)
   region: ${opt:region}
   stage: ${opt:stage}
-  runtime: nodejs20.x # TODO: upgrade to 22.x
+  runtime: nodejs22.x
 
   iam:
     role:
@@ -54,7 +54,7 @@ functions:
   handler:
     name: lights-out-${self:provider.stage}
     handler: src/functions/handler/index.main
-    runtime: nodejs20.x # TODO: upgrade to 22.x
+    runtime: nodejs22.x
     timeout: 300
     memorySize: 512
     tags:
@@ -70,7 +70,7 @@ custom:
     minify: true
     sourcemap: true
     external: []
-    target: node20 #TODO upgrade to node22
+    target: node22
     platform: node
 
   # Config file path resolver for multi-project support

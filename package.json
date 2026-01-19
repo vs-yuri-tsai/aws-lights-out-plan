@@ -4,7 +4,7 @@
   "description": "自動在非工作時間關閉 AWS 開發環境資源（ECS Service 等）以節省成本",
   "main": "index.js",
   "engines": {
-    "node": ">=20.0.0 <21.0.0"
+    "node": ">=22.0.0 <23.0.0"
   },
   "scripts": {
     "test": "vitest run",
