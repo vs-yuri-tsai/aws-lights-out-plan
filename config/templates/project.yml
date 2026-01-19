@@ -1,0 +1,217 @@
+# =============================================================================
+# Lights Out Configuration Template
+# =============================================================================
+#
+# This is a template for creating a new lights-out project configuration.
+# Copy this file to config/{account}/{project}.yml and customize it.
+#
+# For automated setup, use: node scripts/onboard-project.js
+#
+# Documentation: docs/onboarding-guide.md
+# =============================================================================
+
+# Configuration version (always '1.0')
+version: '1.0'
+
+# Environment identifier (typically: {account}-{project})
+# This should match the stage name in serverless.yml
+environment: my-account-my-project
+
+# =============================================================================
+# REGION CONFIGURATION
+# =============================================================================
+# Choose ONE of the following options:
+#
+# Option A: Single or multiple regions with shared schedule
+# ---------------------------------------------------------
+regions:
+  - us-east-1
+  # - ap-southeast-1  # Uncomment to add more regions
+
+# Option B: Region groups with different schedules
+# ---------------------------------------------------------
+# Uncomment and remove the 'regions' section above to use region groups
+#
+# region_groups:
+#   asia:
+#     - ap-southeast-1
+#     - ap-northeast-1
+#   america:
+#     - us-east-1
+#     - us-west-2
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+notifications:
+  teams:
+    # Enable/disable Teams notifications
+    enabled: true
+    # Microsoft Teams webhook URL (from Power Automate or Incoming Webhook)
+    webhook_url: >-
+      https://your-webhook-url-here
+    # Description shown in notification messages
+    description: Lights Out notifications for my-project
+
+# =============================================================================
+# RESOURCE DISCOVERY
+# =============================================================================
+discovery:
+  # Discovery method (currently only 'tags' is supported)
+  method: tags
+
+  # Tags to filter resources
+  # All tags must match for a resource to be included
+  tags:
+    # Required: Must be 'true' for resource to be managed
+    lights-out:managed: 'true'
+
+    # Choose ONE of the following:
+    # - lights-out:project - For project-scoped resources
+    # - lights-out:group   - For account-wide resource groups
+    lights-out:project: my-project
+    # lights-out:group: my-group
+
+  # Resource types to manage
+  # Supported types: ecs:service, rds:db
+  resource_types:
+    - ecs:service
+    # - rds:db  # Uncomment to include RDS instances
+
+# =============================================================================
+# RESOURCE DEFAULTS
+# =============================================================================
+# Configuration defaults for each resource type
+resource_defaults:
+  # -------------------------------------------------------------------------
+  # ECS Service Configuration
+  # -------------------------------------------------------------------------
+  ecs-service:
+    # Wait for service to reach stable state after update
+    waitForStable: true
+    # Timeout for waiting (in seconds)
+    stableTimeoutSeconds: 300
+
+    # START configuration
+    start:
+      # Option A: Direct mode (no Application Auto Scaling)
+      # Just set desiredCount
+      desiredCount: 1
+
+      # Option B: Auto Scaling mode (with Application Auto Scaling)
+      # Uncomment these and the desiredCount above becomes required
+      # minCapacity: 2
+      # maxCapacity: 6
+      # desiredCount: 2
+
+    # STOP configuration
+    stop:
+      desiredCount: 0
+      # For Auto Scaling mode:
+      # minCapacity: 0
+      # maxCapacity: 0
+      # desiredCount: 0
+
+  # -------------------------------------------------------------------------
+  # RDS Instance Configuration (uncomment if using rds:db)
+  # -------------------------------------------------------------------------
+  # rds-db:
+  #   # Seconds to wait after issuing start/stop command
+  #   # RDS operations take 5-10 minutes; we just confirm state transition started
+  #   waitAfterCommand: 60
+  #
+  #   # Skip creating snapshot on stop
+  #   # - true: Recommended for dev/test environments (saves cost)
+  #   # - false: Creates snapshot before stopping (for important data)
+  #   skipSnapshot: true
+
+# =============================================================================
+# SCHEDULE CONFIGURATION
+# =============================================================================
+# Choose ONE of the following options:
+#
+# Option A: Single schedule for all regions (use with 'regions')
+# --------------------------------------------------------------
+schedules:
+  default:
+    # IANA timezone (see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+    timezone: Asia/Taipei
+
+    # Start time in 24-hour format (HH:mm)
+    startTime: '08:00'
+
+    # Stop time in 24-hour format (HH:mm)
+    stopTime: '18:00'
+
+    # Active days (MON, TUE, WED, THU, FRI, SAT, SUN)
+    activeDays:
+      - MON
+      - TUE
+      - WED
+      - THU
+      - FRI
+
+    # Holiday dates to skip (YYYY-MM-DD format)
+    holidays: []
+
+    # Enable/disable the schedule
+    enabled: true
+
+# Option B: Per-group schedules (use with 'region_groups')
+# --------------------------------------------------------
+# Uncomment and remove 'schedules' section above to use group schedules
+#
+# group_schedules:
+#   asia:
+#     timezone: Asia/Taipei
+#     startTime: '08:00'
+#     stopTime: '22:00'
+#     activeDays:
+#       - MON
+#       - TUE
+#       - WED
+#       - THU
+#       - FRI
+#     enabled: true
+#   america:
+#     timezone: America/New_York
+#     startTime: '08:00'
+#     stopTime: '18:00'
+#     activeDays:
+#       - MON
+#       - TUE
+#       - WED
+#       - THU
+#       - FRI
+#     enabled: true
+
+# =============================================================================
+# CRON EXPRESSIONS (AUTO-GENERATED)
+# =============================================================================
+# These sections are automatically generated by:
+#   node scripts/generate-cron.js --config config/{account}/{project}.yml
+#
+# DO NOT edit manually - they will be overwritten
+#
+# For single schedule (schedules_cron):
+# schedules_cron:
+#   start:
+#     expression: 0 0 ? * MON-FRI *
+#     description: Start resources at 08:00 Asia/Taipei (00:00 UTC)
+#     enabled: true
+#   stop:
+#     expression: 0 10 ? * MON-FRI *
+#     description: Stop resources at 18:00 Asia/Taipei (10:00 UTC)
+#     enabled: true
+#
+# For group schedules (group_schedules_cron):
+# group_schedules_cron:
+#   asia:
+#     start:
+#       expression: 0 0 ? * MON-FRI *
+#       description: Start asia resources at 08:00 Asia/Taipei (00:00 UTC)
+#       enabled: true
+#     stop:
+#       expression: 0 14 ? * MON-FRI *
+#       description: Stop asia resources at 22:00 Asia/Taipei (14:00 UTC)
+#       enabled: true

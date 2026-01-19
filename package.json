@@ -19,6 +19,7 @@
     "action": "node scripts/run-interactive.js --mode action",
     "config": "node scripts/run-interactive.js --mode config",
     "deploy": "node scripts/run-interactive.js --mode deploy",
+    "onboard": "node scripts/onboard-project.js",
     "prepare": "husky"
   },
   "keywords": [
@@ -58,6 +59,7 @@
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
+    "handlebars": "^4.7.8",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",

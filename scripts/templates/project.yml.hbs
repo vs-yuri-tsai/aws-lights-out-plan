@@ -1,0 +1,90 @@
+version: '1.0'
+environment: {{environment}}
+{{#if useRegionGroups}}
+region_groups:
+{{#each regionGroups}}
+  {{@key}}:
+{{#each this}}
+    - {{this}}
+{{/each}}
+{{/each}}
+{{else}}
+regions:
+{{#each regions}}
+  - {{this}}
+{{/each}}
+{{/if}}
+notifications:
+  teams:
+    enabled: {{#if teams.enabled}}true{{else}}false{{/if}}
+{{#if teams.enabled}}
+    webhook_url: >-
+      {{teams.webhookUrl}}
+    description: {{teams.description}}
+{{/if}}
+discovery:
+  method: tags
+  tags:
+    lights-out:managed: 'true'
+{{#if projectTag}}
+    lights-out:project: {{projectTag}}
+{{else}}
+    lights-out:group: {{groupTag}}
+{{/if}}
+  resource_types:
+{{#each resourceTypes}}
+    - {{this}}
+{{/each}}
+resource_defaults:
+{{#if hasEcs}}
+  ecs-service:
+    waitForStable: true
+    stableTimeoutSeconds: 300
+    start:
+{{#if ecs.useAutoScaling}}
+      minCapacity: {{ecs.start.minCapacity}}
+      maxCapacity: {{ecs.start.maxCapacity}}
+      desiredCount: {{ecs.start.desiredCount}}
+{{else}}
+      desiredCount: {{ecs.start.desiredCount}}
+{{/if}}
+    stop:
+{{#if ecs.useAutoScaling}}
+      minCapacity: {{ecs.stop.minCapacity}}
+      maxCapacity: {{ecs.stop.maxCapacity}}
+      desiredCount: {{ecs.stop.desiredCount}}
+{{else}}
+      desiredCount: {{ecs.stop.desiredCount}}
+{{/if}}
+{{/if}}
+{{#if hasRds}}
+  rds-db:
+    waitAfterCommand: {{rds.waitAfterCommand}}
+    skipSnapshot: {{#if rds.skipSnapshot}}true{{else}}false{{/if}}
+{{/if}}
+{{#if useRegionGroups}}
+group_schedules:
+{{#each groupSchedules}}
+  {{@key}}:
+    timezone: {{this.timezone}}
+    startTime: '{{this.startTime}}'
+    stopTime: '{{this.stopTime}}'
+    activeDays:
+{{#each this.activeDays}}
+      - {{this}}
+{{/each}}
+    enabled: {{#if this.enabled}}true{{else}}false{{/if}}
+{{/each}}
+{{else}}
+schedules:
+  default:
+    timezone: {{schedule.timezone}}
+    startTime: '{{schedule.startTime}}'
+    stopTime: '{{schedule.stopTime}}'
+    activeDays:
+{{#each schedule.activeDays}}
+      - {{this}}
+{{/each}}
+    holidays: []
+    enabled: {{#if schedule.enabled}}true{{else}}false{{/if}}
+{{/if}}
