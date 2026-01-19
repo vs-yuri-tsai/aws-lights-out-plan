@@ -13,8 +13,8 @@ AWS Lambda 將於 2026-04-30 停止支援 Node.js 20.x。
 **Checklist:**
 
 - [ ] 本地安裝 Node.js 22.x
-- [ ] 更新 `package.json` engines 欄位
-- [ ] 更新 `serverless.yml` runtime 設定
+- [x] 更新 `package.json` engines 欄位
+- [x] 更新 `serverless.yml` runtime 設定
 - [ ] 執行測試驗證相容性
 - [ ] 部署到測試環境驗證
 
