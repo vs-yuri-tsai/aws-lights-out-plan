@@ -328,10 +328,16 @@ function buildAggregatedPayload(
  * @returns Adaptive Card in Teams message format
  */
 function createAggregatedCard(payload: AggregatedNotificationPayload): object {
-  const statusEmoji = payload.success ? '✅' : '❌';
+  const statusEmoji = (() => {
+    if (!payload.success) {
+      return '⚠️';
+    }
+    // Different emoji for start vs stop
+    return payload.action === 'start' ? '🌕' : '🌑';
+  })();
   const statusText = payload.success ? 'Success' : 'Failed';
   const statusColor = payload.success ? 'good' : 'attention';
-  const actionUpper = payload.action.toUpperCase();
+  const actionText = payload.action === 'start' ? 'Lights-On' : 'Lights-Off';
 
   const triggerDisplay = formatTriggerSourceDisplay(payload.triggerSource);
 
@@ -383,7 +389,7 @@ function createAggregatedCard(payload: AggregatedNotificationPayload): object {
           body: [
             {
               type: 'TextBlock',
-              text: `${statusEmoji} Lights-Out ${actionUpper} - ${statusText}`,
+              text: `${statusEmoji} ${actionText} - ${statusText}`,
               weight: 'bolder',
               size: 'large',
               color: statusColor,

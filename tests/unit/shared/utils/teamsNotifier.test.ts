@@ -616,7 +616,7 @@ describe('teamsNotifier', () => {
       const bodyText = JSON.stringify(cardContent.body);
 
       // Verify card contains expected content
-      expect(bodyText).toContain('Lights-Out START - Success');
+      expect(bodyText).toContain('Lights-On - Success');
       expect(bodyText).toContain('test-env');
       expect(bodyText).toContain('us-east-1');
       expect(bodyText).toContain('cluster/service1');
@@ -659,7 +659,7 @@ describe('teamsNotifier', () => {
       const bodyText = JSON.stringify(cardContent.body);
 
       // Verify card contains failure information
-      expect(bodyText).toContain('Lights-Out START - Failed');
+      expect(bodyText).toContain('Lights-On - Failed');
       expect(bodyText).toContain('Service not found');
     });
 
