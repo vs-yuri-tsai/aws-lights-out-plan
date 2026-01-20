@@ -1,0 +1,21 @@
+{
+  "$schema": "https://claude.ai/schemas/plugin.json",
+  "name": "lights-out-onboarding",
+  "version": "1.0.0",
+  "description": "AWS Lights Out Onboarding - 引導使用者探索 AWS 資源並產出分析報告",
+  "author": "ViewSonic",
+  "commands": [
+    {
+      "name": "lights-out-discover",
+      "description": "探索 AWS 資源並產出 Lights Out 分析報告",
+      "file": "../commands/lights-out-discover.md"
+    }
+  ],
+  "mcpServers": {
+    "lights-out-discovery": {
+      "command": "node",
+      "args": ["servers/discovery-mcp/dist/index.js"],
+      "cwd": "${pluginDir}"
+    }
+  }
+}

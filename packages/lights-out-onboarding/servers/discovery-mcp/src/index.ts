@@ -17,12 +17,13 @@ import {
 import { verifyCredentials } from './tools/verifyCredentials.js';
 import { discoverEcsServices } from './tools/discoverEcs.js';
 import { discoverRdsInstances } from './tools/discoverRds.js';
-import { analyzeResources } from './tools/analyzeResources.js';
+import { listAvailableRegions } from './tools/listRegions.js';
+import { scanIacDirectory } from './tools/scanIacDirectory.js';
 import {
   VerifyCredentialsInputSchema,
   DiscoverEcsInputSchema,
   DiscoverRdsInputSchema,
-  AnalyzeResourcesInputSchema,
+  ScanIacDirectoryInputSchema,
 } from './types.js';
 
 const server = new Server(
@@ -42,6 +43,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
+        name: 'list_available_regions',
+        description:
+          'List all available AWS regions grouped by geography. Use this first to show users the region options before discovery.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'verify_credentials',
         description: 'Verify AWS credentials and return account identity information',
         inputSchema: {
@@ -57,7 +67,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'discover_ecs_services',
         description:
-          'Discover all ECS services in specified AWS regions, including Auto Scaling configuration and tags',
+          'Discover all ECS services in specified AWS regions, including Auto Scaling configuration, launch type, Task Definition analysis, and container roles (scheduler, webhook, sidecar, etc.)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -73,7 +83,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'discover_rds_instances',
         description:
-          'Discover all RDS instances in specified AWS regions, including tags and configuration',
+          'Discover all RDS instances in specified AWS regions, including tags, configuration, Aurora cluster membership, read replica status, and Lights Out compatibility analysis',
         inputSchema: {
           type: 'object',
           properties: {
@@ -87,30 +97,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'analyze_resources',
+        name: 'scan_iac_directory',
         description:
-          'Analyze discovered resources and generate Lights Out configuration recommendations with a markdown report',
+          'Scan a directory for Infrastructure as Code files (Terraform, CloudFormation, Terragrunt) and extract ECS/RDS resource definitions to provide context for analysis',
         inputSchema: {
           type: 'object',
           properties: {
-            resources: {
-              type: 'object',
-              properties: {
-                ecs: {
-                  type: 'array',
-                  items: { type: 'object' },
-                  description: 'ECS services from discover_ecs_services',
-                },
-                rds: {
-                  type: 'array',
-                  items: { type: 'object' },
-                  description: 'RDS instances from discover_rds_instances',
-                },
-              },
-              required: ['ecs', 'rds'],
+            directory: {
+              type: 'string',
+              description: 'Path to the IaC project directory to scan',
+            },
+            includeSnippets: {
+              type: 'boolean',
+              description:
+                'Whether to include code snippets around resource definitions (default: false)',
             },
           },
-          required: ['resources'],
+          required: ['directory'],
         },
       },
     ],
@@ -123,6 +126,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
 
   try {
     switch (name) {
+      case 'list_available_regions': {
+        const result = listAvailableRegions();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
       case 'verify_credentials': {
         const input = VerifyCredentialsInputSchema.parse(args);
         const result = await verifyCredentials(input);
@@ -162,14 +177,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
         };
       }
 
-      case 'analyze_resources': {
-        const input = AnalyzeResourcesInputSchema.parse(args);
-        const result = await analyzeResources(input);
+      case 'scan_iac_directory': {
+        const input = ScanIacDirectoryInputSchema.parse(args);
+        const result = await scanIacDirectory(input);
         return {
           content: [
             {
               type: 'text',
-              text: result.report,
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };

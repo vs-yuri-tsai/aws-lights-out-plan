@@ -98,6 +98,29 @@ export interface EcsServiceInfo {
 // RDS Instance Types
 // ============================================================================
 
+/**
+ * Lights Out support level for RDS instances
+ */
+export type RdsLightsOutSupport =
+  | 'supported' // Can be stopped/started directly
+  | 'cluster-managed' // Aurora cluster member - must stop/start via cluster
+  | 'not-supported' // Cannot be stopped (e.g., read replica, serverless v1)
+  | 'unknown';
+
+/**
+ * RDS instance configuration analysis for Lights Out compatibility
+ */
+export interface RdsConfigAnalysis {
+  /** Whether this instance supports Lights Out operations */
+  supportLevel: RdsLightsOutSupport;
+  /** Reasons explaining the support level */
+  reasons: string[];
+  /** Recommendations for this instance */
+  recommendations: string[];
+  /** Warning messages if any */
+  warnings: string[];
+}
+
 export interface RdsInstanceInfo {
   region: string;
   instanceId: string;
@@ -109,6 +132,23 @@ export interface RdsInstanceInfo {
   multiAZ: boolean;
   tags: Record<string, string>;
   hasLightsOutTags: boolean;
+  // New fields for Lights Out compatibility analysis
+  /** Whether this is an Aurora cluster member */
+  isAuroraClusterMember: boolean;
+  /** Aurora cluster identifier if applicable */
+  clusterIdentifier?: string;
+  /** Whether this is a read replica */
+  isReadReplica: boolean;
+  /** Source DB instance if this is a replica */
+  sourceDBInstanceIdentifier?: string;
+  /** Whether this is Aurora Serverless */
+  isAuroraServerless: boolean;
+  /** Storage type (for cost estimation) */
+  storageType?: string;
+  /** Allocated storage in GB */
+  allocatedStorage?: number;
+  /** Lights Out configuration analysis */
+  configAnalysis: RdsConfigAnalysis;
 }
 
 // ============================================================================
@@ -170,49 +210,108 @@ const TaskDefinitionAnalysisSchema = z.object({
   recommendations: z.array(z.string()),
 });
 
-export const AnalyzeResourcesInputSchema = z.object({
-  resources: z.object({
-    ecs: z.array(
-      z.object({
-        region: z.string(),
-        clusterName: z.string(),
-        serviceName: z.string(),
-        arn: z.string(),
-        desiredCount: z.number(),
-        runningCount: z.number(),
-        status: z.string(),
-        launchType: z.string().optional(),
-        hasAutoScaling: z.boolean(),
-        autoScalingConfig: z
-          .object({
-            minCapacity: z.number(),
-            maxCapacity: z.number(),
-            scalableTargetArn: z.string().optional(),
-          })
-          .optional(),
-        tags: z.record(z.string()),
-        hasLightsOutTags: z.boolean(),
-        taskDefinition: TaskDefinitionAnalysisSchema.optional(),
-      })
-    ),
-    rds: z.array(
-      z.object({
-        region: z.string(),
-        instanceId: z.string(),
-        arn: z.string(),
-        engine: z.string(),
-        engineVersion: z.string(),
-        status: z.string(),
-        instanceClass: z.string(),
-        multiAZ: z.boolean(),
-        tags: z.record(z.string()),
-        hasLightsOutTags: z.boolean(),
-      })
-    ),
-  }),
+// RDS config analysis schema
+const RdsConfigAnalysisSchema = z.object({
+  supportLevel: z.enum(['supported', 'cluster-managed', 'not-supported', 'unknown']),
+  reasons: z.array(z.string()),
+  recommendations: z.array(z.string()),
+  warnings: z.array(z.string()),
 });
 
 export type VerifyCredentialsInput = z.infer<typeof VerifyCredentialsInputSchema>;
 export type DiscoverEcsInput = z.infer<typeof DiscoverEcsInputSchema>;
 export type DiscoverRdsInput = z.infer<typeof DiscoverRdsInputSchema>;
-export type AnalyzeResourcesInput = z.infer<typeof AnalyzeResourcesInputSchema>;
+
+// ============================================================================
+// IaC Scanning Types
+// ============================================================================
+
+/**
+ * IaC file type
+ */
+export type IacType = 'terraform' | 'terragrunt' | 'cloudformation';
+
+/**
+ * IaC resource category
+ */
+export type IacResourceCategory = 'ecs' | 'rds' | 'autoscaling';
+
+/**
+ * Information about a discovered IaC file
+ */
+export interface IacFileInfo {
+  /** Absolute path to the file */
+  path: string;
+  /** Path relative to the scanned directory */
+  relativePath: string;
+  /** Type of IaC */
+  type: IacType;
+  /** File name */
+  fileName: string;
+}
+
+/**
+ * A resource definition found in IaC files
+ */
+export interface IacResourceDefinition {
+  /** Resource category (ecs, rds, autoscaling) */
+  type: IacResourceCategory;
+  /** Full resource type string (e.g., "aws_ecs_service", "AWS::ECS::Service") */
+  resourceType: string;
+  /** File where the resource was found */
+  file: string;
+  /** Line number in the file */
+  lineNumber: number;
+  /** Code snippet around the resource definition */
+  snippet?: string;
+}
+
+/**
+ * Summary of IaC scan results
+ */
+export interface IacScanSummary {
+  /** Total number of IaC files found */
+  totalFiles: number;
+  /** Number of Terraform files */
+  terraform: number;
+  /** Number of Terragrunt files */
+  terragrunt: number;
+  /** Number of CloudFormation files */
+  cloudformation: number;
+  /** Number of ECS resource definitions */
+  ecsResources: number;
+  /** Number of RDS resource definitions */
+  rdsResources: number;
+  /** Number of Auto Scaling resource definitions */
+  autoscalingResources: number;
+}
+
+/**
+ * Result of scanning an IaC directory
+ */
+export interface IacScanResult {
+  /** Whether the scan was successful */
+  success: boolean;
+  /** Error message if scan failed */
+  error?: string;
+  /** Directory that was scanned */
+  directory: string;
+  /** List of IaC files found */
+  files: IacFileInfo[];
+  /** List of resource definitions found */
+  resources: IacResourceDefinition[];
+  /** Summary statistics */
+  summary: IacScanSummary;
+}
+
+// Input schema for IaC scanning
+export const ScanIacDirectoryInputSchema = z.object({
+  directory: z.string().describe('IaC 專案的目錄路徑'),
+  includeSnippets: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('是否包含程式碼片段（預設 false）'),
+});
+
+export type ScanIacDirectoryInput = z.infer<typeof ScanIacDirectoryInputSchema>;
