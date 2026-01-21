@@ -31,7 +31,7 @@ hooks:
 
     # Run setup commands:
     - type: command
-      command: source ~/.nvm/nvm.sh && nvm use 20
+      command: source ~/.nvm/nvm.sh && nvm use
     - type: command
       command: pnpm install
     - type: command

@@ -6,7 +6,7 @@
 
 ## Tech Stack
 
-- **Runtime:** TypeScript 5.9 + Node.js 22.x (AWS Lambda)
+- **Runtime:** TypeScript 5.9 + Node.js 24.x (AWS Lambda)
 - **Framework:** Serverless Framework + serverless-esbuild
 - **Trigger:** EventBridge (cron) + SSM Parameter Store (config)
 - **Discovery:** Resource Groups Tagging API

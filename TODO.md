@@ -6,13 +6,13 @@
 
 ## Critical Tasks
 
-### Node.js 22.x Migration (Due: 2026-04-30)
+### Node.js 24.x Migration
 
-AWS Lambda 將於 2026-04-30 停止支援 Node.js 20.x。
+已升級至 Node.js 24.x（AWS Lambda 最新 LTS 版本，於 2025 年 11 月發布）。
 
 **Checklist:**
 
-- [ ] 本地安裝 Node.js 22.x
+- [ ] 本地安裝 Node.js 24.x
 - [x] 更新 `package.json` engines 欄位
 - [x] 更新 `serverless.yml` runtime 設定
 - [ ] 執行測試驗證相容性
