@@ -69,18 +69,24 @@ const MODES = {
     title: 'SSM Config Management',
     choices: [
       {
-        title: '⬆️  Upload   - Deploy YAML config to SSM Parameter Store',
+        title: '⬆️  Upload Project Config  - Deploy YAML config to SSM Parameter Store',
         value: 'upload',
       },
       {
-        title: '⬇️  Retrieve - Fetch current config from SSM Parameter Store',
+        title: '⬇️  Retrieve Project Config - Fetch current config from SSM Parameter Store',
         value: 'retrieve',
+      },
+      {
+        title: '🔑 Upload Teams Webhook Token - Upload Teams webhook security token',
+        value: 'upload-token',
       },
     ],
     scriptMap: {
       upload: 'deploy-config',
+      'upload-token': 'upload-teams-webhook-token',
       retrieve: 'get-ssm-config',
     },
+    promptForToken: true, // Flag to indicate this mode needs token input
   },
   deploy: {
     title: 'Serverless Deployment',
@@ -218,9 +224,40 @@ async function main() {
       actionParam = ` --action ${selectedValue}`;
     } else if (params.mode === 'config') {
       scriptName = mode.scriptMap[selectedValue];
+
+      // Special handling for upload-token: prompt for token value
+      if (selectedValue === 'upload-token') {
+        const tokenResponse = await prompts({
+          type: 'password',
+          name: 'token',
+          message: 'Enter Teams webhook security token',
+          validate: value => {
+            if (!value || value.trim().length === 0) {
+              return 'Token cannot be empty';
+            }
+            if (value.length < 10) {
+              return 'Token seems too short (expected at least 10 characters)';
+            }
+            return true;
+          },
+        });
+
+        // Handle Ctrl+C or ESC
+        if (!tokenResponse.token) {
+          console.log('\n👋 Cancelled\n');
+          process.exit(0);
+        }
+
+        // Run upload-teams-webhook-token.js directly with token parameter
+        const uploadScript = path.join(__dirname, `${scriptName}.js`);
+        const command = `node "${uploadScript}" --project ${projectName} --token "${tokenResponse.token}"`;
+
+        execSync(command, { stdio: 'inherit' });
+        return;
+      }
     }
 
-    // Run the selected command
+    // Run the selected command (for non-upload-token options)
     const runScript = path.join(__dirname, 'run-command.js');
     const command = `node "${runScript}" --project ${projectName} --script ${scriptName}${actionParam}`;
 
