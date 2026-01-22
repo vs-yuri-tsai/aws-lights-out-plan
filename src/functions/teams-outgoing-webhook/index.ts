@@ -86,13 +86,26 @@ export async function main(
       return buildErrorResponse('❌ Empty request body');
     }
 
-    // 2. Validate HMAC signature
+    // 2. Parse Teams payload first to check message type
+    const payload = JSON.parse(event.body) as OutgoingWebhookBasePayload;
+
+    // 3. Check for Authorization header
+    // IMPORTANT: Teams does NOT send Authorization header during webhook creation/verification
+    // The security token is generated AFTER the webhook is successfully created
     const authHeader = event.headers.Authorization || event.headers.authorization;
+
     if (!authHeader) {
-      logger.warn({ requestId }, 'Missing Authorization header');
-      return buildErrorResponse('❌ Unauthorized: Missing signature', 401);
+      logger.info(
+        { requestId, type: payload.type },
+        'No Authorization header - treating as webhook verification request'
+      );
+
+      // Allow webhook creation by responding with success
+      // This is ONLY for the initial webhook setup in Teams
+      return buildSuccessResponse('✅ Webhook endpoint verified successfully');
     }
 
+    // 4. Validate HMAC signature for authenticated requests
     const securityToken = await getSecurityToken();
     const isValid = validateHmacSignature(authHeader, event.body, securityToken);
 
@@ -103,22 +116,18 @@ export async function main(
 
     logger.info({ requestId }, 'HMAC signature validated successfully');
 
-    // 3. Parse Teams payload
-    const payload = JSON.parse(event.body) as OutgoingWebhookBasePayload;
-
-    // Handle verification request (when creating webhook in Teams)
-    // Teams sends a test message to verify the endpoint is valid
+    // 5. Verify this is a message type (not a legacy verification request)
     if (payload.type !== 'message') {
       logger.info(
         { requestId, type: payload.type },
-        'Received non-message payload (likely verification request)'
+        'Received non-message payload with valid signature'
       );
 
-      // Respond with success to allow webhook creation
-      return buildSuccessResponse('✅ Webhook endpoint verified');
+      // Respond with success
+      return buildSuccessResponse('✅ Request acknowledged');
     }
 
-    // Cast to message type after verification
+    // 6. Cast to message type after verification
     const message = payload as OutgoingWebhookMessage;
 
     logger.info(
@@ -131,7 +140,7 @@ export async function main(
       'Message parsed successfully'
     );
 
-    // 4. Parse command
+    // 7. Parse command
     const commandResult = parseCommand(message.text || '');
 
     if (!commandResult.valid || !commandResult.action) {
@@ -142,7 +151,7 @@ export async function main(
     // TypeScript now knows commandResult.action is defined
     const action = commandResult.action;
 
-    // 5. Load config from SSM and check user permission
+    // 8. Load config from SSM and check user permission
     const configParameter = process.env.CONFIG_PARAMETER_NAME || '/lights-out/config';
     logger.debug({ configParameter }, 'Loading config from SSM');
 
@@ -180,7 +189,7 @@ export async function main(
       },
     };
 
-    // 7. Invoke main handler Lambda (fire-and-forget)
+    // 9. Invoke main handler Lambda (fire-and-forget)
     logger.info(
       {
         action,
@@ -200,7 +209,7 @@ export async function main(
       return buildErrorResponse(`❌ Failed to invoke handler: ${invocationResult.error}`, 500);
     }
 
-    // 8. Send immediate acknowledgment to Teams
+    // 10. Send immediate acknowledgment to Teams
     const acknowledgment =
       `✅ Command received: **${action.toUpperCase()}**\n\n` +
       `ℹ️ Processing resources... Check this channel for detailed status in ~30 seconds.`;
