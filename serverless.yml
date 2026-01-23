@@ -73,14 +73,8 @@ custom:
     target: node24
     platform: node
 
-  # Config file path resolver for multi-project support
-  configPath: ${self:custom.resolveConfigPath.${self:provider.stage}, '${self:provider.stage}.yml'}
-  resolveConfigPath:
-    pg-development-airsync-dev: pg-development/airsync-dev.yml
-    pg-development-insights-dev: pg-development/insights-dev.yml
-    pg-stage-airsync-stage: pg-stage/airsync-stage.yml
-    pg-stage-insights-stage: pg-stage/insights-stage.yml
-    sss-lab: sss-lab.yml
+  # Config file path is dynamically resolved by generate-schedules.js
+  # by scanning scripts/arguments/*.json files for matching stage name
 
 plugins:
   - serverless-esbuild

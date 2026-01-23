@@ -19,20 +19,42 @@ const path = require('path');
 const yaml = require('js-yaml');
 
 /**
- * Resolve config file path based on stage.
- * Mirrors the logic in serverless.yml custom.configPath
+ * Resolve config file path based on stage by scanning arguments directory.
+ * This eliminates hardcoded mappings - the config path is read from arguments/{env}.json
  *
  * @param {string} stage - Serverless stage
  * @returns {string} Config file path relative to project root
  */
 function resolveConfigPath(stage) {
-  const stageToPath = {
-    'pg-development-airsync-dev': 'pg-development/airsync-dev.yml',
-    'pg-stage-airsync-stage': 'pg-stage/airsync-stage.yml',
-    'sss-lab': 'sss-lab.yml',
-  };
+  const argsDir = path.join(__dirname, 'arguments');
 
-  return stageToPath[stage] || `${stage}.yml`;
+  // Check if arguments directory exists
+  if (!fs.existsSync(argsDir)) {
+    console.warn(`[generate-schedules] Arguments directory not found: ${argsDir}`);
+    return `${stage}.yml`;
+  }
+
+  // Scan all JSON files in arguments directory
+  const files = fs.readdirSync(argsDir).filter(file => file.endsWith('.json'));
+
+  for (const file of files) {
+    try {
+      const argPath = path.join(argsDir, file);
+      const args = JSON.parse(fs.readFileSync(argPath, 'utf8'));
+
+      // Match stage name
+      if (args.stage === stage && args.config && args.config.path) {
+        console.log(`[generate-schedules] Found config path from ${file}: ${args.config.path}`);
+        return args.config.path;
+      }
+    } catch (error) {
+      console.warn(`[generate-schedules] Failed to read ${file}: ${error.message}`);
+    }
+  }
+
+  // Fallback: assume config/{stage}.yml
+  console.warn(`[generate-schedules] No matching arguments file found for stage: ${stage}, using fallback: ${stage}.yml`);
+  return `${stage}.yml`;
 }
 
 /**
@@ -232,7 +254,7 @@ module.exports.events = (serverless) => {
 
   // Resolve config path
   const configRelPath = resolveConfigPath(stage);
-  const configPath = path.resolve(__dirname, '..', 'config', configRelPath);
+  const configPath = path.resolve(__dirname, '..', configRelPath);
 
   console.log(`[generate-schedules] Stage: ${stage}`);
   console.log(`[generate-schedules] Config: ${configPath}`);
