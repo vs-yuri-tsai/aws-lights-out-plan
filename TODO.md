@@ -1,10 +1,10 @@
 # AWS Lights-Out Plan - TODO
 
-**Last Updated**: 2026-01-16
+**Last Updated**: 2026-01-19
 
 ---
 
-## Critical Tasks
+## Phase 1: AI Integration（優先）
 
 ### Node.js 24.x Migration
 
@@ -20,61 +20,46 @@
 
 ---
 
-## Pre-Landing Phase 1: 集中式增強
+## Phase 2: 集中式增強
 
-**目標：** 快速讓多個專案導入
+**目標：** 基於 AI 分析結果，快速讓多個專案導入
 
 | Task | Description                                            | Status |
 | ---- | ------------------------------------------------------ | ------ |
-| 1.1  | 建立 onboarding script (`/scripts/onboard-project.js`) | 待開始 |
-| 1.2  | 建立配置範本 (`/config/templates/project.yml`)         | 待開始 |
-| 1.3  | 撰寫 onboarding 文件                                   | 待開始 |
+| 2.1  | 建立 onboarding script (`/scripts/onboard-project.js`) | 待開始 |
+| 2.2  | 建立配置範本 (`/config/templates/project.yml`)         | 待開始 |
+| 2.3  | 撰寫 onboarding 文件                                   | 待開始 |
 
 ---
 
-## Pre-Landing Phase 2: Package 提取
+## Phase 3: Package 提取
 
 **目標：** 建立可發布的 npm package (`@vs-infra/lights-out`)
 
 | Task | Description           | Status |
 | ---- | --------------------- | ------ |
-| 2.1  | 設定 pnpm workspace   | 待開始 |
-| 2.2  | 建立 package 結構     | 待開始 |
-| 2.3  | Export handler module | 待開始 |
-| 2.4  | 建立 Serverless 範本  | 待開始 |
+| 3.1  | 設定 pnpm workspace   | 待開始 |
+| 3.2  | 建立 package 結構     | 待開始 |
+| 3.3  | Export handler module | 待開始 |
+| 3.4  | 建立 Serverless 範本  | 待開始 |
 
 ---
 
-## Pre-Landing Phase 3: CLI 開發
+## Phase 4: CLI 開發
 
 **目標：** 一鍵部署體驗
 
 | Task | Description                  | Status |
 | ---- | ---------------------------- | ------ |
-| 3.1  | CLI framework (Commander.js) | 待開始 |
-| 3.2  | init command                 | 待開始 |
-| 3.3  | discover command             | 待開始 |
-| 3.4  | deploy command               | 待開始 |
-| 3.5  | invoke command               | 待開始 |
+| 4.1  | CLI framework (Commander.js) | 待開始 |
+| 4.2  | init command                 | 待開始 |
+| 4.3  | discover command             | 待開始 |
+| 4.4  | deploy command               | 待開始 |
+| 4.5  | invoke command               | 待開始 |
 
 ---
 
-## AI Integration (Phase 4)
-
-**目標：** 自動化 onboarding 和智能操作
-
-| Task | Description             | Status |
-| ---- | ----------------------- | ------ |
-| 4.1  | MCP Server 核心         | 待開始 |
-| 4.2  | discover_resources tool | 待開始 |
-| 4.3  | generate_config tool    | 待開始 |
-| 4.4  | apply_tags tool         | 待開始 |
-| 4.5  | Traffic Analysis skill  | 待開始 |
-| 4.6  | Cost Diff Report skill  | 待開始 |
-
----
-
-## Production Enhancement (Phase 5)
+## Phase 5: Production Enhancement
 
 **目標：** 生產環境功能
 

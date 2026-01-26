@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "lights-out-discovery": {
+      "command": "node",
+      "args": ["servers/discovery-mcp/dist/index.js"],
+      "cwd": "."
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@lights-out/onboarding",
+  "version": "1.0.0",
+  "description": "AWS Lights Out Onboarding Plugin for Claude Code",
+  "private": true,
+  "workspaces": [
+    "servers/discovery-mcp"
+  ],
+  "scripts": {
+    "build": "npm run build -w servers/discovery-mcp",
+    "dev": "npm run dev -w servers/discovery-mcp"
+  },
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "aws",
+    "mcp"
+  ],
+  "license": "ISC"
+}
