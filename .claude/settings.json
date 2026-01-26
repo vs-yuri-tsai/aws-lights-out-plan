@@ -2,5 +2,19 @@
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "context7@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm format --write \"$CLAUDE_FILE_PATHS\" 2>/dev/null || true",
+            "statusMessage": "正在格式化程式碼..."
+          }
+        ]
+      }
+    ]
   }
 }
