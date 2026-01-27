@@ -390,7 +390,7 @@ schedules:
 ```yaml
 lights-out:managed: 'true'
 lights-out:env: 'dev'
-lights-out:priority: '100' # 較晚關閉，較早啟動
+lights-out:priority: '100' # 較早關閉、較晚啟動（數字越大優先級越低）
 ```
 
 #### C. 高風險（需要評估）
@@ -411,10 +411,12 @@ aws rds add-tags-to-resource \
   --resource-name arn:aws:rds:{region}:{account}:db:{instance_id} \
   --tags Key=lights-out:managed,Value=true \
          Key=lights-out:env,Value=dev \
-         Key=lights-out:priority,Value=100 \
+         Key=lights-out:priority,Value=10 \
   --region {region} \
   --profile {profile}
 ```
+
+> 💡 RDS 使用 priority=10（較小數字），確保先啟動、後關閉，讓 ECS 服務可以連線。
 
 ---
 
@@ -500,9 +502,11 @@ aws rds add-tags-to-resource \
   --resource-name arn:aws:rds:{region}:{account}:db:{instance_id} \
   --tags Key=lights-out:managed,Value=true \
          Key=lights-out:env,Value=dev \
-         Key=lights-out:priority,Value=100 \
+         Key=lights-out:priority,Value=10 \
   --region {region}
 ```
+
+> 💡 RDS 使用較小的 priority 值確保先啟動（讓 ECS 服務可連線）、後關閉（等 ECS 服務都停止後再關閉）。
 
 ### 2. 建立 SSM Parameter Store 配置
 
@@ -627,6 +631,31 @@ options:
 
 報告已儲存至：{file_path}
 
+```
+
+---
+
+## Step 8: 銜接到標籤套用
+
+報告儲存完成後，使用 AskUserQuestion 詢問：
+
+```
+question: "是否要繼續為報告中的資源套用 Lights Out 標籤？"
+options:
+  - label: "繼續套用標籤 (Recommended)"
+    description: "根據報告建議，為資源套用 lights-out:managed 等標籤"
+  - label: "稍後再處理"
+    description: "您可以之後執行 /lights-out-apply-tags 來套用標籤"
+```
+
+**如果選擇繼續套用標籤：**
+
+提示使用者執行：
+
+```
+請執行 /lights-out-apply-tags 來為資源套用標籤。
+
+報告路徑：{file_path}
 ```
 
 ---
