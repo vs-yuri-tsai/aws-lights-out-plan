@@ -494,3 +494,83 @@ export interface LambdaExecutionResult {
   timestamp: string;
   request_id: string;
 }
+
+/**
+ * ASG action configuration for start or stop operations.
+ *
+ * Defines capacity settings for a specific action (START or STOP).
+ */
+export interface ASGActionConfig {
+  /**
+   * Minimum size for the Auto Scaling Group.
+   * Example: 2 (ensures at least 2 instances when ASG is running)
+   */
+  minSize: number;
+
+  /**
+   * Maximum size for the Auto Scaling Group.
+   * Example: 10 (allows scaling up to 10 instances)
+   */
+  maxSize: number;
+
+  /**
+   * Desired capacity for the Auto Scaling Group.
+   * Must be between minSize and maxSize.
+   * Example: 2 (start with 2 instances)
+   */
+  desiredCapacity: number;
+}
+
+/**
+ * Default Scaling Processes to suspend during stop operation.
+ * These processes can interfere with lights-out operations if not suspended.
+ */
+export const DEFAULT_PROCESSES_TO_SUSPEND = [
+  'Launch',
+  'Terminate',
+  'HealthCheck',
+  'ReplaceUnhealthy',
+  'AZRebalance',
+  'ScheduledActions',
+] as const;
+
+/**
+ * ASG resource defaults configuration.
+ *
+ * ASG uses a "fire-and-forget" approach because EC2 instances
+ * take 2-5 minutes to launch, which could exceed Lambda timeout limits.
+ */
+export interface ASGResourceDefaults {
+  /**
+   * Whether to suspend scaling processes during stop operation.
+   * When true, processes like Launch, Terminate, HealthCheck will be suspended
+   * to prevent ASG from automatically adjusting capacity.
+   * Default: true
+   */
+  suspendProcesses?: boolean;
+
+  /**
+   * List of scaling processes to suspend during stop operation.
+   * Default: ['Launch', 'Terminate', 'HealthCheck', 'ReplaceUnhealthy', 'AZRebalance', 'ScheduledActions']
+   */
+  processesToSuspend?: string[];
+
+  /**
+   * Seconds to wait after sending start/stop command before returning.
+   * This brief wait confirms the operation has begun.
+   * Default: 30 seconds.
+   *
+   * @example 30 - Wait 30 seconds after command
+   */
+  waitAfterCommand?: number;
+
+  /**
+   * Configuration for START operation (required).
+   */
+  start: ASGActionConfig;
+
+  /**
+   * Configuration for STOP operation (required).
+   */
+  stop: ASGActionConfig;
+}
