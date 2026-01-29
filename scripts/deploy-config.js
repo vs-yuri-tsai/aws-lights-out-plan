@@ -34,7 +34,7 @@ function parseArgs() {
 // Validate required parameters
 function validateParams(params) {
   const required = ['name', 'config', 'region'];
-  const missing = required.filter(key => !params[key]);
+  const missing = required.filter((key) => !params[key]);
 
   if (missing.length > 0) {
     console.error(`❌ Missing required parameters: ${missing.join(', ')}`);
@@ -93,7 +93,6 @@ async function main() {
 
     console.log(`✅ Successfully deployed config to ${name}`);
     console.log(`📌 Version: ${response.Version}`);
-
   } catch (error) {
     console.error('❌ Deployment failed:');
     console.error(error.message);

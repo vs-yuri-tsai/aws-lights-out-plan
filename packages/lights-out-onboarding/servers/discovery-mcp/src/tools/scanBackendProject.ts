@@ -82,7 +82,10 @@ const TS_ENV_PATTERNS = [
 const PY_HTTP_PATTERNS = [
   { pattern: /requests\.(get|post|put|delete|patch)\s*\(\s*['"](https?:\/\/[^'"]+)['"]/gi },
   { pattern: /httpx\.(get|post|put|delete|patch)\s*\(\s*['"](https?:\/\/[^'"]+)['"]/gi },
-  { pattern: /aiohttp\.ClientSession\(\)\.(?:get|post|put|delete)\s*\(\s*['"](https?:\/\/[^'"]+)['"]/gi },
+  {
+    pattern:
+      /aiohttp\.ClientSession\(\)\.(?:get|post|put|delete)\s*\(\s*['"](https?:\/\/[^'"]+)['"]/gi,
+  },
 ];
 
 // Patterns for environment variable usage (Python)
@@ -95,7 +98,10 @@ const PY_ENV_PATTERNS = [
 // Patterns for HTTP calls (Go)
 const GO_HTTP_PATTERNS = [
   { pattern: /http\.(Get|Post|Put|Delete)\s*\(\s*["](https?:\/\/[^"]+)["]/gi },
-  { pattern: /http\.NewRequest\s*\(\s*["](GET|POST|PUT|DELETE|PATCH)["].*["](https?:\/\/[^"]+)["]/gi },
+  {
+    pattern:
+      /http\.NewRequest\s*\(\s*["](GET|POST|PUT|DELETE|PATCH)["].*["](https?:\/\/[^"]+)["]/gi,
+  },
 ];
 
 // Patterns for environment variable usage (Go)
@@ -154,7 +160,11 @@ function detectLanguage(directory: string): ProjectLanguage {
     return 'typescript';
   }
 
-  if (files.includes('requirements.txt') || files.includes('pyproject.toml') || files.includes('setup.py')) {
+  if (
+    files.includes('requirements.txt') ||
+    files.includes('pyproject.toml') ||
+    files.includes('setup.py')
+  ) {
     return 'python';
   }
 
@@ -476,7 +486,11 @@ function inferDependencies(
       const match = hostname.match(/^([a-z0-9-]+)/i);
       if (match) {
         const targetService = match[1].toLowerCase();
-        if (targetService !== serviceName && targetService !== 'localhost' && targetService !== '127') {
+        if (
+          targetService !== serviceName &&
+          targetService !== 'localhost' &&
+          targetService !== '127'
+        ) {
           const key = `${serviceName}->${targetService}`;
           if (!dependencies.has(key)) {
             dependencies.set(key, {
@@ -546,7 +560,8 @@ export async function scanBackendProject(input: {
       ...emptyResult,
       success: true,
       language,
-      error: '無法偵測專案語言，請確認專案包含 package.json、tsconfig.json、requirements.txt 或 go.mod',
+      error:
+        '無法偵測專案語言，請確認專案包含 package.json、tsconfig.json、requirements.txt 或 go.mod',
     };
   }
 

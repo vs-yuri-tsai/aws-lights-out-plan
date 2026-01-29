@@ -54,18 +54,18 @@ function buildCommand(scriptName, projectArgs, extraArgs = {}) {
   const argMappings = {
     'invoke-lambda-handler': {
       'function-name': projectArgs['function-name'],
-      'region': projectArgs.region,
-      'action': extraArgs.action,
+      region: projectArgs.region,
+      action: extraArgs.action,
     },
     'deploy-config': {
-      'name': projectArgs.config?.name,
-      'config': projectArgs.config?.path,
-      'region': projectArgs.region,
-      'description': projectArgs.config?.description,
+      name: projectArgs.config?.name,
+      config: projectArgs.config?.path,
+      region: projectArgs.region,
+      description: projectArgs.config?.description,
     },
     'get-ssm-config': {
-      'name': projectArgs.config?.name,
-      'region': projectArgs.region,
+      name: projectArgs.config?.name,
+      region: projectArgs.region,
     },
   };
 
@@ -92,9 +92,13 @@ function main() {
     if (!params.project) {
       console.error('❌ Missing required parameter: --project');
       console.error('\nUsage:');
-      console.error('  node scripts/run-command.js --project <name> --script <script-name> [--action <action>]');
+      console.error(
+        '  node scripts/run-command.js --project <name> --script <script-name> [--action <action>]'
+      );
       console.error('\nExamples:');
-      console.error('  node scripts/run-command.js --project airsync-dev --script invoke-lambda-handler --action start');
+      console.error(
+        '  node scripts/run-command.js --project airsync-dev --script invoke-lambda-handler --action start'
+      );
       console.error('  node scripts/run-command.js --project airsync-dev --script deploy-config');
       process.exit(1);
     }
@@ -122,7 +126,6 @@ function main() {
 
     // Execute the command with clean credentials environment
     execSync(command, { stdio: 'inherit', env });
-
   } catch (error) {
     console.error('\n❌ Error:', error.message);
     process.exit(1);

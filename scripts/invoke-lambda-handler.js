@@ -30,7 +30,7 @@ function parseArgs() {
 // Validate required parameters
 function validateParams(params) {
   const required = ['function-name', 'action', 'region'];
-  const missing = required.filter(key => !params[key]);
+  const missing = required.filter((key) => !params[key]);
 
   if (missing.length > 0) {
     console.error(`❌ Missing required parameters: ${missing.join(', ')}`);
@@ -117,14 +117,15 @@ async function main() {
       console.log(logs);
       console.log('━'.repeat(80));
     }
-
   } catch (error) {
     console.error('\n❌ Invocation failed:', error.message);
 
     if (error.name === 'ResourceNotFoundException') {
       console.error('\n💡 Hint: Function not found. Make sure it has been deployed.');
     } else if (error.name === 'AccessDeniedException') {
-      console.error('\n💡 Hint: Permission denied. Make sure your AWS profile has lambda:InvokeFunction permission.');
+      console.error(
+        '\n💡 Hint: Permission denied. Make sure your AWS profile has lambda:InvokeFunction permission.'
+      );
     }
 
     process.exit(1);
