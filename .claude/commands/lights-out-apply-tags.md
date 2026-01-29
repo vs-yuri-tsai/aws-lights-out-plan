@@ -300,36 +300,26 @@ options:
     description: "手動輸入路徑"
 ```
 
-使用 `generate_iac_tag_patch` 產生修改建議。
+### AI 分析模式
 
-### AI Fallback 機制
-
-如果 `generate_iac_tag_patch` 回傳 `requiresAiAnalysis: true`，表示內建 Plugin 無法辨識 IaC 結構，需要使用 AI 分析。
+使用 AI 能力直接分析 IaC 專案結構，產生標籤修改建議。
 
 **處理步驟：**
 
-1. 顯示提示訊息：
+1. 使用 Glob、Read 等工具探索 IaC 專案目錄結構：
+   - 掃描目錄結構（`*.tf`, `*.hcl`, `*.yaml`, `*.yml`, `serverless.yml` 等）
+   - 讀取關鍵檔案內容
 
-```
-⚠️ 內建 Plugin 無法完全辨識此 IaC 專案結構，啟用 AI 分析模式...
-```
-
-2. 分析 `aiAnalysisContext` 中的資訊：
-   - `directoryStructure`: 目錄結構樹
-   - `sampleFiles`: 樣本檔案內容（已截斷至 2000 字元）
-   - `hints`: 結構提示（如 "Found module directory"）
-   - `resources`: 需要標籤的資源清單
-
-3. 根據上下文使用 AI 能力分析：
-   - 判斷 IaC 類型（Terraform, Terragrunt, CloudFormation, CDK 等）
+2. 根據檔案內容進行 AI 分析：
+   - 判斷 IaC 類型（Terraform, Terragrunt, CloudFormation, CDK, Serverless 等）
    - 理解專案結構（module/unit/stack 階層）
    - 找出 tags 應該加在哪些檔案、哪些位置
    - 考慮是否需要在多個層級修改（如 Terragrunt 的 module → unit → stack）
 
-4. 產生自訂修改建議，格式如下：
+3. 產生修改建議，格式如下：
 
 ````
-🤖 AI 分析結果：
+IaC 分析結果：
 
 偵測到專案類型: {detected_type}
 結構分析: {structure_analysis}
@@ -351,7 +341,7 @@ options:
 
 ```
 
-5. 如果 AI 無法確定最佳修改方式：
+4. 如果 AI 無法確定最佳修改方式：
 
 ```
 
@@ -369,147 +359,16 @@ options:
 
 ```
 
-6. 對於部分成功的情況（找到一些資源但不是全部）：
+**支援的 IaC 類型：**
 
-```
-
-找到 {found_count} 個資源的 IaC 定義：
-{found_patches}
-
-以下 {notFound_count} 個資源需要 AI 分析：
-{ai_analysis_for_notFound}
-
-```
-
----
-
-**Plugin 支援的 IaC 類型：**
-
-| Plugin       | 檔案類型                    | 支援程度 |
-|--------------|----------------------------|----------|
-| Terraform    | `*.tf`                     | 完整     |
-| Terragrunt   | `terragrunt.hcl`, `terragrunt.stack.hcl` | 完整 |
-| CloudFormation | `*.yaml`, `*.yml` (含 AWS::) | 完整  |
-| Serverless   | `serverless.yml`           | 完整     |
-| 其他         | AI Fallback 分析           | 視情況   |
-
----
-
-使用 Plugin 成功時的顯示格式：
-
-```
-
-IaC 標籤修改建議：
-
-找到 {totalPatches} 個需要修改的資源定義：
-
-- Terraform: {terraform} 個
-- CloudFormation: {cloudformation} 個
-- Serverless: {serverless} 個
-- Terragrunt: {terragrunt} 個
-- 未找到: {notFound} 個
-
----
-
-### Terraform 修改建議
-
-**檔案: infra/ecs.tf**
-**資源: aws_ecs_service.vs_auth**
-
-在 resource 區塊中添加以下 tags：
-
-```hcl
-  tags = {
-    "lights-out:managed"  = "true"
-    "lights-out:project"  = "vs-account"
-    "lights-out:priority" = "50"
-  }
-```
-
----
-
-### CloudFormation 修改建議
-
-**檔案: templates/ecs-service.yaml**
-**資源: VsAuthService**
-
-在 Properties 下添加以下 Tags：
-
-```yaml
-Tags:
-  - Key: 'lights-out:managed'
-    Value: 'true'
-  - Key: 'lights-out:project'
-    Value: 'vs-account'
-  - Key: 'lights-out:priority'
-    Value: '50'
-```
-
----
-
-### Terragrunt 修改建議
-
-如果偵測到 Terragrunt Stack 結構（`terragrunt.stack.hcl`），需要多層次的修改：
-
-**1. Module 層級** (module/ecs-service)
-
-如果 module 尚未支援 tags 變數，需要先新增：
-
-`variable.tf`:
-
-```hcl
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-```
-
-`main.tf` (aws_ecs_service 資源):
-
-```hcl
-tags = var.tags
-```
-
-**2. Unit 層級** (unit/ecs-service/terragrunt.hcl)
-
-在 inputs 中加入：
-
-```hcl
-tags = try(values.tags, {})
-```
-
-**3. Stack 層級** (stack/ecs-service/terragrunt.stack.hcl)
-
-在各個 unit block 的 values 中加入 tags：
-
-```hcl
-unit "vs-auth" {
-  # ... 其他設定
-  values = merge(local.common_dependencies, local.common_unit_values, {
-    # ... 其他 values
-    tags = {
-      "lights-out:managed"  = "true"
-      "lights-out:project"  = "vs-account"
-      "lights-out:priority" = "50"
-    }
-  })
-}
-```
-
-> 💡 Terragrunt 的修改需要在三個層級進行，請確保每個層級都已正確設定。
-
-```
-
-如果有未找到的資源：
-
-```
-
-⚠️ 以下資源未在 IaC 中找到對應定義：
-
-- arn:aws:ecs:us-east-1:123456789:service/cluster/vs-example-dev
-  建議：此資源可能是手動建立的，請考慮加入 IaC 管理
-
-```
+| 類型           | 檔案類型                                   |
+|----------------|-------------------------------------------|
+| Terraform      | `*.tf`                                    |
+| Terragrunt     | `terragrunt.hcl`, `terragrunt.stack.hcl`  |
+| CloudFormation | `*.yaml`, `*.yml` (含 AWS::)              |
+| Serverless     | `serverless.yml`                          |
+| CDK            | `*.ts`, `*.py` (含 CDK constructs)        |
+| 其他           | 視專案結構分析                             |
 
 ---
 
@@ -572,6 +431,110 @@ aws lambda invoke \
 - API 套用: {api_count} 個
 - IaC 修改建議: {iac_count} 個
 
+```
+
+### Step 9.1: 儲存 IaC 修改建議
+
+**僅在 Step 7B 有產生 IaC 修改建議時才執行此步驟。**
+
+使用 AskUserQuestion 詢問：
+
+```
+
+question: "是否要將 IaC 修改建議另存為 Markdown 文件？"
+options:
+
+- label: "儲存到 IaC 專案目錄 (Recommended)"
+  description: "將修改建議儲存至 {iacDirectory}/lights-out-iac-suggestions.md"
+- label: "儲存到自訂路徑"
+  description: "手動指定檔案路徑"
+- label: "不儲存"
+  description: "跳過，僅在對話中保留建議"
+
+`````
+
+**如果選擇儲存：**
+
+使用 Write 工具將 IaC 修改建議寫入 markdown 文件。
+
+**預設檔案路徑：** `{iacDirectory}/lights-out-iac-suggestions.md`
+
+如果選擇自訂路徑，使用 AskUserQuestion 讓使用者輸入路徑。
+
+**文件內容格式：**
+
+````markdown
+# Lights Out IaC Tag Suggestions
+
+> Generated: {date}
+> AWS Account: {accountId}
+> Region: {regions}
+> Project: {project}
+
+## Overview
+
+This document contains IaC modification suggestions for adding Lights Out tags to AWS resources.
+
+- Total resources: {total}
+- ECS Services: {ecsCount}
+- RDS Instances: {rdsCount}
+
+## Tags to Apply
+
+| Tag | Value | Description |
+|-----|-------|-------------|
+| `lights-out:managed` | `true` | Mark as Lights Out managed resource |
+| `lights-out:project` | `{project}` | Project name |
+| `lights-out:priority` | `50` (ECS) / `100` (RDS) | Startup/shutdown order |
+
+## Modification Suggestions
+
+{iac_suggestions_content}
+
+<!-- 此處包含 Step 7B 中 AI 分析產生的所有 IaC 修改建議內容 -->
+
+## Resources
+
+### Applied (via API)
+
+| Resource | Type | Tags |
+|----------|------|------|
+| {resource_name} | {type} | managed=true, project={project}, priority={priority} |
+| ... | ... | ... |
+
+### Excluded
+
+| Resource | Reason |
+|----------|--------|
+| {resource_name} | {reason} |
+| ... | ... |
+
+### Skipped (High Risk / Stopped)
+
+| Resource | Reason |
+|----------|--------|
+| {resource_name} | {reason} |
+| ... | ... |
+`````
+
+**儲存成功後顯示：**
+
+```
+IaC 修改建議已儲存至：
+{file_path}
+```
+
+**注意事項：**
+
+- 文件內容應包含 Step 7B 中 AI 分析產生的**完整** IaC 修改建議（含程式碼片段）
+- 同時列出 API 已套用的資源、已排除的資源、被跳過的資源，方便日後追蹤
+
+---
+
+### Step 9.2: 下一步
+
+```
+
 下一步：
 
 1. 如果使用 API 套用，標籤已立即生效
@@ -584,7 +547,7 @@ aws lambda invoke \
 - docs/deployment-guide.md - 完整部署指南
 - config/sss-lab.yml - 配置範例
 
-````
+```
 
 ---
 
@@ -592,37 +555,15 @@ aws lambda invoke \
 
 此命令使用 `lights-out-discovery` MCP Server 提供的以下 tools：
 
-| Tool                      | 用途                                      |
-|---------------------------|-------------------------------------------|
-| `list_discovery_reports`  | 列出可用的探索報告                        |
-| `parse_discovery_report`  | 解析報告並分類資源                        |
-| `verify_credentials`      | 驗證 AWS 認證                             |
-| `apply_tags_via_api`      | 透過 AWS API 套用標籤                     |
-| `verify_tags`             | 驗證標籤是否成功套用                      |
-| `generate_iac_tag_patch`  | 產生 IaC 標籤修改建議（含 AI Fallback）   |
+| Tool                     | 用途                  |
+| ------------------------ | --------------------- |
+| `list_discovery_reports` | 列出可用的探索報告    |
+| `parse_discovery_report` | 解析報告並分類資源    |
+| `verify_credentials`     | 驗證 AWS 認證         |
+| `apply_tags_via_api`     | 透過 AWS API 套用標籤 |
+| `verify_tags`            | 驗證標籤是否成功套用  |
 
-### generate_iac_tag_patch 回傳說明
-
-此工具使用 Plugin 架構偵測 IaC 類型，當內建 Plugin 無法處理時會回傳 AI Fallback 上下文：
-
-```typescript
-interface GenerateIacTagPatchResultWithAiFallback {
-  success: boolean;
-  patches: IacTagPatch[];  // Plugin 成功產生的 patches
-  notFoundResources: string[];
-
-  // AI Fallback 欄位
-  requiresAiAnalysis?: boolean;  // 是否需要 AI 分析
-  aiAnalysisContext?: {
-    directoryStructure: DirectoryStructure;  // 目錄結構樹
-    sampleFiles: SampleFile[];  // 樣本檔案內容
-    resources: ResourceToTag[];  // 需要標籤的資源
-    hints?: string[];  // 結構提示
-  };
-}
-```
-
-當 `requiresAiAnalysis === true` 時，使用 `aiAnalysisContext` 進行 AI 分析。
+> IaC 修改建議由 AI 直接分析專案結構產生，不依賴 MCP 工具。
 
 ---
 
@@ -641,7 +582,7 @@ interface GenerateIacTagPatchResultWithAiFallback {
   ],
   "Resource": "*"
 }
-````
+```
 
 ---
 
