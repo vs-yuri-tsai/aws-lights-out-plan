@@ -126,9 +126,11 @@ aws ecs tag-resource \
   --tags \
     Key=lights-out:managed,Value=true \
     Key=lights-out:group,Value=new-project \
-    Key=lights-out:priority,Value=100 \
+    Key=lights-out:priority,Value=50 \
   --region <region>
 ```
+
+> 💡 **Priority 說明**：數字越小 = 越先啟動、越後關閉。建議 RDS 用 10，ECS 用 50。
 
 ### 4. 部署
 

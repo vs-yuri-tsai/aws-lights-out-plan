@@ -18,16 +18,22 @@ import { verifyCredentials } from './tools/verifyCredentials.js';
 import { discoverEcsServices } from './tools/discoverEcs.js';
 import { discoverRdsInstances } from './tools/discoverRds.js';
 import { listAvailableRegions } from './tools/listRegions.js';
-import { scanIacDirectory } from './tools/scanIacDirectory.js';
 import { scanBackendProject } from './tools/scanBackendProject.js';
 import { analyzeDependencies } from './tools/analyzeDependencies.js';
+import { listDiscoveryReports } from './tools/listDiscoveryReports.js';
+import { parseDiscoveryReport } from './tools/parseDiscoveryReport.js';
+import { applyTagsViaApi } from './tools/applyTagsViaApi.js';
+import { verifyTags } from './tools/verifyTags.js';
 import {
   VerifyCredentialsInputSchema,
   DiscoverEcsInputSchema,
   DiscoverRdsInputSchema,
-  ScanIacDirectoryInputSchema,
   ScanBackendProjectInputSchema,
   AnalyzeDependenciesInputSchema,
+  ListDiscoveryReportsInputSchema,
+  ParseDiscoveryReportInputSchema,
+  ApplyTagsViaApiInputSchema,
+  VerifyTagsInputSchema,
 } from './types.js';
 
 const server = new Server(
@@ -101,26 +107,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'scan_iac_directory',
-        description:
-          'Scan a directory for Infrastructure as Code files (Terraform, CloudFormation, Terragrunt) and extract ECS/RDS resource definitions to provide context for analysis',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            directory: {
-              type: 'string',
-              description: 'Path to the IaC project directory to scan',
-            },
-            includeSnippets: {
-              type: 'boolean',
-              description:
-                'Whether to include code snippets around resource definitions (default: false)',
-            },
-          },
-          required: ['directory'],
-        },
-      },
-      {
         name: 'scan_backend_project',
         description:
           'Scan a backend project directory for HTTP calls, environment variable usage, and infer service dependencies. Supports TypeScript/JavaScript, Python, and Go projects.',
@@ -151,15 +137,116 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: 'array',
               description: 'ECS services from discover_ecs_services result',
             },
-            iacScanResult: {
-              type: 'object',
-              description: 'Result from scan_iac_directory',
-            },
             backendAnalysis: {
               type: 'array',
               description: 'Results from scan_backend_project (can be multiple projects)',
             },
           },
+        },
+      },
+      // Apply Tags tools
+      {
+        name: 'list_discovery_reports',
+        description:
+          'List available discovery reports from the reports directory, extracting account ID and date information',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            accountId: {
+              type: 'string',
+              description: 'Filter by AWS account ID (optional)',
+            },
+            directory: {
+              type: 'string',
+              description: 'Custom reports directory (optional, defaults to ./reports)',
+            },
+          },
+        },
+      },
+      {
+        name: 'parse_discovery_report',
+        description:
+          'Parse a discovery report markdown file and extract resources, classifying them into autoApply (low risk), needConfirmation (high risk), and excluded (not supported) categories',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            reportPath: {
+              type: 'string',
+              description: 'Path to the discovery report file',
+            },
+          },
+          required: ['reportPath'],
+        },
+      },
+      {
+        name: 'apply_tags_via_api',
+        description:
+          'Apply Lights Out tags to AWS resources (ECS services, RDS instances) via AWS SDK APIs. Supports dry-run mode for preview.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            resources: {
+              type: 'array',
+              description: 'Resources to tag (ARN, type, tags)',
+              items: {
+                type: 'object',
+                properties: {
+                  arn: { type: 'string' },
+                  type: { type: 'string', enum: ['ecs-service', 'rds-db'] },
+                  tags: {
+                    type: 'object',
+                    properties: {
+                      'lights-out:managed': { type: 'string' },
+                      'lights-out:project': { type: 'string' },
+                      'lights-out:priority': { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+            dryRun: {
+              type: 'boolean',
+              description: 'Preview mode - no actual changes (default: false)',
+            },
+            profile: {
+              type: 'string',
+              description: 'AWS profile name (optional)',
+            },
+          },
+          required: ['resources'],
+        },
+      },
+      {
+        name: 'verify_tags',
+        description: 'Verify that Lights Out tags have been successfully applied to AWS resources',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            resources: {
+              type: 'array',
+              description: 'Resources to verify (ARN, type, expectedTags)',
+              items: {
+                type: 'object',
+                properties: {
+                  arn: { type: 'string' },
+                  type: { type: 'string', enum: ['ecs-service', 'rds-db'] },
+                  expectedTags: {
+                    type: 'object',
+                    properties: {
+                      'lights-out:managed': { type: 'string' },
+                      'lights-out:project': { type: 'string' },
+                      'lights-out:priority': { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+            profile: {
+              type: 'string',
+              description: 'AWS profile name (optional)',
+            },
+          },
+          required: ['resources'],
         },
       },
     ],
@@ -223,19 +310,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
         };
       }
 
-      case 'scan_iac_directory': {
-        const input = ScanIacDirectoryInputSchema.parse(args);
-        const result = await scanIacDirectory(input);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-
       case 'scan_backend_project': {
         const input = ScanBackendProjectInputSchema.parse(args);
         const result = await scanBackendProject(input);
@@ -252,6 +326,59 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
       case 'analyze_dependencies': {
         const input = AnalyzeDependenciesInputSchema.parse(args);
         const result = await analyzeDependencies(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Apply Tags tools
+      case 'list_discovery_reports': {
+        const input = ListDiscoveryReportsInputSchema.parse(args);
+        const result = await listDiscoveryReports(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'parse_discovery_report': {
+        const input = ParseDiscoveryReportInputSchema.parse(args);
+        const result = await parseDiscoveryReport(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'apply_tags_via_api': {
+        const input = ApplyTagsViaApiInputSchema.parse(args);
+        const result = await applyTagsViaApi(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'verify_tags': {
+        const input = VerifyTagsInputSchema.parse(args);
+        const result = await verifyTags(input);
         return {
           content: [
             {

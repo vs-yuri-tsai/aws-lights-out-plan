@@ -48,47 +48,7 @@ options:
 
 ---
 
-## Step 2: 詢問 IaC 專案目錄
-
-使用 AskUserQuestion 詢問：
-
-```
-question: "你是否有 Infrastructure as Code (IaC) 專案可以提供作為分析參考？"
-options:
-  - label: "有，我有 Terraform/Terragrunt 專案"
-    description: "請提供專案目錄路徑"
-  - label: "有，我有 CloudFormation 範本"
-    description: "請提供範本目錄路徑"
-  - label: "沒有，直接探索 AWS 資源"
-    description: "跳過此步驟"
-```
-
----
-
-## Step 3: 掃描 IaC 取得區域（如果有提供 IaC 路徑）
-
-使用 `scan_iac_directory` 掃描 IaC 專案。
-
-**顯示掃描結果摘要：**
-
-```
-IaC 專案掃描結果：
-- 掃描目錄: {directory}
-- Terraform 檔案: {terraform} 個
-- Terragrunt 檔案: {terragrunt} 個
-- CloudFormation 檔案: {cloudformation} 個
-
-發現的資源定義：
-- ECS 相關: {ecsResources} 個
-- RDS 相關: {rdsResources} 個
-- Auto Scaling 相關: {autoscalingResources} 個
-```
-
-從結果中提取部署的區域列表（如果可識別）。
-
----
-
-## Step 4: 選擇探索區域
+## Step 2: 選擇探索區域
 
 使用 `list_available_regions` 取得完整區域列表。
 
@@ -98,7 +58,7 @@ IaC 專案掃描結果：
 question: "請選擇要探索的 AWS 區域"
 multiSelect: true
 options:
-  - label: "ap-southeast-1 (Singapore)" + " (Recommended)" if detected from IaC
+  - label: "ap-southeast-1 (Singapore)"
     description: "新加坡區域"
   - label: "ap-northeast-1 (Tokyo)"
     description: "東京區域"
@@ -108,11 +68,9 @@ options:
     description: "手動輸入區域代碼"
 ```
 
-**如果從 IaC 發現了區域，優先顯示這些區域並標記為推薦。**
-
 ---
 
-## Step 5: 探索資源
+## Step 3: 探索資源
 
 並行執行：
 
@@ -142,7 +100,7 @@ options:
 
 ---
 
-## Step 6: 生成報告
+## Step 4: 生成報告
 
 **按照以下固定模板生成報告：**
 
@@ -280,7 +238,7 @@ resource_defaults:
 
 ---
 
-## Step 7: 儲存報告
+## Step 5: 儲存報告
 
 **判斷儲存位置：**
 
@@ -361,7 +319,6 @@ options:
 |------|------|
 | `verify_credentials` | 驗證 AWS 認證 |
 | `list_available_regions` | 取得按地區分組的 AWS regions 列表 |
-| `scan_iac_directory` | 掃描 IaC 目錄，找出資源定義 |
 | `discover_ecs_services` | 探索 ECS Services |
 | `discover_rds_instances` | 探索 RDS Instances |
 

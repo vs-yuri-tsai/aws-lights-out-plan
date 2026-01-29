@@ -9,6 +9,11 @@
       "name": "lights-out-discover",
       "description": "探索 AWS 資源並產出 Lights Out 分析報告",
       "file": "../commands/lights-out-discover.md"
+    },
+    {
+      "name": "lights-out-apply-tags",
+      "description": "根據探索報告為 AWS 資源套用 Lights Out 標籤",
+      "file": "../commands/lights-out-apply-tags.md"
     }
   ],
   "mcpServers": {

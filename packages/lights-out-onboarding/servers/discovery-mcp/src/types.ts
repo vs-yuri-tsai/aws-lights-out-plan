@@ -253,62 +253,8 @@ export type DiscoverEcsInput = z.infer<typeof DiscoverEcsInputSchema>;
 export type DiscoverRdsInput = z.infer<typeof DiscoverRdsInputSchema>;
 
 // ============================================================================
-// IaC Scanning Types
+// Dependency Edge Type (shared)
 // ============================================================================
-
-/**
- * IaC file type
- */
-export type IacType = 'terraform' | 'terragrunt' | 'cloudformation';
-
-/**
- * IaC resource category
- */
-export type IacResourceCategory =
-  | 'ecs'
-  | 'rds'
-  | 'autoscaling'
-  | 'security_group'
-  | 'service_discovery'
-  | 'load_balancer';
-
-/**
- * Information about a discovered IaC file
- */
-export interface IacFileInfo {
-  /** Absolute path to the file */
-  path: string;
-  /** Path relative to the scanned directory */
-  relativePath: string;
-  /** Type of IaC */
-  type: IacType;
-  /** File name */
-  fileName: string;
-}
-
-/**
- * A resource definition found in IaC files
- */
-export interface IacResourceDefinition {
-  /** Resource category (ecs, rds, autoscaling) */
-  type: IacResourceCategory;
-  /** Full resource type string (e.g., "aws_ecs_service", "AWS::ECS::Service") */
-  resourceType: string;
-  /** File where the resource was found */
-  file: string;
-  /** Line number in the file */
-  lineNumber: number;
-  /** Code snippet around the resource definition */
-  snippet?: string;
-  /** Resource name (e.g., "main", "api") - Terraform resource name or CloudFormation logical ID */
-  resourceName?: string;
-  /** References to other resources (e.g., "aws_rds_cluster.db.endpoint") */
-  references?: string[];
-  /** Explicit depends_on declarations */
-  dependsOn?: string[];
-  /** Security group references */
-  securityGroups?: string[];
-}
 
 /**
  * A dependency edge between two resources
@@ -325,66 +271,6 @@ export interface DependencyEdge {
   /** Evidence for this dependency (file:line or description) */
   evidence?: string;
 }
-
-/**
- * Summary of IaC scan results
- */
-export interface IacScanSummary {
-  /** Total number of IaC files found */
-  totalFiles: number;
-  /** Number of Terraform files */
-  terraform: number;
-  /** Number of Terragrunt files */
-  terragrunt: number;
-  /** Number of CloudFormation files */
-  cloudformation: number;
-  /** Number of ECS resource definitions */
-  ecsResources: number;
-  /** Number of RDS resource definitions */
-  rdsResources: number;
-  /** Number of Auto Scaling resource definitions */
-  autoscalingResources: number;
-  /** Number of Security Group resource definitions */
-  securityGroupResources: number;
-  /** Number of Service Discovery resource definitions */
-  serviceDiscoveryResources: number;
-  /** Number of Load Balancer resource definitions */
-  loadBalancerResources: number;
-  /** Number of dependency edges discovered */
-  dependencyEdges: number;
-}
-
-/**
- * Result of scanning an IaC directory
- */
-export interface IacScanResult {
-  /** Whether the scan was successful */
-  success: boolean;
-  /** Error message if scan failed */
-  error?: string;
-  /** Directory that was scanned */
-  directory: string;
-  /** List of IaC files found */
-  files: IacFileInfo[];
-  /** List of resource definitions found */
-  resources: IacResourceDefinition[];
-  /** Summary statistics */
-  summary: IacScanSummary;
-  /** Dependency graph edges discovered from IaC */
-  dependencyGraph?: DependencyEdge[];
-}
-
-// Input schema for IaC scanning
-export const ScanIacDirectoryInputSchema = z.object({
-  directory: z.string().describe('IaC 專案的目錄路徑'),
-  includeSnippets: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('是否包含程式碼片段（預設 false）'),
-});
-
-export type ScanIacDirectoryInput = z.infer<typeof ScanIacDirectoryInputSchema>;
 
 // ============================================================================
 // Backend Project Analysis Types
@@ -547,8 +433,242 @@ export interface DependencyAnalysisResult {
 // Input schema for dependency analysis
 export const AnalyzeDependenciesInputSchema = z.object({
   ecsServices: z.array(z.any()).optional().describe('ECS services from discover_ecs_services'),
-  iacScanResult: z.any().optional().describe('Result from scan_iac_directory'),
   backendAnalysis: z.array(z.any()).optional().describe('Results from scan_backend_project'),
 });
 
 export type AnalyzeDependenciesInput = z.infer<typeof AnalyzeDependenciesInputSchema>;
+
+// ============================================================================
+// Apply Tags Types
+// ============================================================================
+
+/**
+ * Information about a discovery report file
+ */
+export interface DiscoveryReportInfo {
+  /** Absolute path to the report file */
+  path: string;
+  /** AWS account ID extracted from directory name */
+  accountId: string;
+  /** Report date extracted from filename (YYYYMMDD) */
+  date: string;
+  /** File name */
+  fileName: string;
+  /** File size in bytes */
+  size: number;
+  /** Last modified time */
+  modifiedAt: string;
+}
+
+/**
+ * Result of listing discovery reports
+ */
+export interface ListDiscoveryReportsResult {
+  success: boolean;
+  error?: string;
+  reports: DiscoveryReportInfo[];
+  summary: {
+    totalReports: number;
+    accounts: string[];
+  };
+}
+
+/**
+ * Lights Out tags to apply
+ */
+export interface LightsOutTags {
+  /** Whether the resource is managed by Lights Out */
+  'lights-out:managed': 'true' | 'false';
+  /** Project name (extracted from common service name prefix) */
+  'lights-out:project': string;
+  /** Priority for startup/shutdown order (lower = earlier) */
+  'lights-out:priority': string;
+}
+
+/**
+ * Resource classification for tag application
+ */
+export type ResourceClassification = 'autoApply' | 'needConfirmation' | 'excluded';
+
+/**
+ * ECS resource extracted from report
+ */
+export interface ParsedEcsResource {
+  region: string;
+  cluster: string;
+  serviceName: string;
+  arn: string;
+  status: string;
+  hasAutoScaling: boolean;
+  autoScalingRange?: string;
+  riskLevel: RiskLevel;
+  lightsOutSupport: 'supported' | 'caution' | 'not-supported';
+  classification: ResourceClassification;
+  classificationReason: string;
+  suggestedTags: LightsOutTags;
+}
+
+/**
+ * RDS resource extracted from report
+ */
+export interface ParsedRdsResource {
+  region: string;
+  instanceId: string;
+  arn: string;
+  engine: string;
+  status: string;
+  instanceType: string;
+  lightsOutSupport: 'supported' | 'cluster-managed' | 'not-supported';
+  classification: ResourceClassification;
+  classificationReason: string;
+  suggestedTags?: LightsOutTags;
+}
+
+/**
+ * Result of parsing a discovery report
+ */
+export interface ParseDiscoveryReportResult {
+  success: boolean;
+  error?: string;
+  reportPath: string;
+  accountId: string;
+  regions: string[];
+  /** Detected project name from cluster name, or null if not detected (user should be asked) */
+  detectedProject: string | null;
+  ecsResources: ParsedEcsResource[];
+  rdsResources: ParsedRdsResource[];
+  summary: {
+    totalEcs: number;
+    totalRds: number;
+    autoApply: number;
+    needConfirmation: number;
+    excluded: number;
+  };
+  categorized: {
+    autoApply: (ParsedEcsResource | ParsedRdsResource)[];
+    needConfirmation: (ParsedEcsResource | ParsedRdsResource)[];
+    excluded: (ParsedEcsResource | ParsedRdsResource)[];
+  };
+}
+
+/**
+ * Resource to apply tags to
+ */
+export interface ResourceToTag {
+  /** Resource ARN */
+  arn: string;
+  /** Resource type */
+  type: 'ecs-service' | 'rds-db';
+  /** Tags to apply */
+  tags: LightsOutTags;
+}
+
+/**
+ * Result of applying tags to a single resource
+ */
+export interface TagApplicationResult {
+  arn: string;
+  type: 'ecs-service' | 'rds-db';
+  status: 'success' | 'failed' | 'skipped';
+  error?: string;
+  appliedTags?: LightsOutTags;
+}
+
+/**
+ * Result of applying tags via API
+ */
+export interface ApplyTagsResult {
+  success: boolean;
+  dryRun: boolean;
+  results: TagApplicationResult[];
+  summary: {
+    total: number;
+    succeeded: number;
+    failed: number;
+    skipped: number;
+  };
+}
+
+/**
+ * Result of verifying tags on a single resource
+ */
+export interface TagVerificationResult {
+  arn: string;
+  type: 'ecs-service' | 'rds-db';
+  status: 'verified' | 'mismatch' | 'not-found' | 'error';
+  expectedTags: LightsOutTags;
+  actualTags?: Record<string, string>;
+  mismatches?: string[];
+  error?: string;
+}
+
+/**
+ * Result of verifying tags
+ */
+export interface VerifyTagsResult {
+  success: boolean;
+  results: TagVerificationResult[];
+  summary: {
+    total: number;
+    verified: number;
+    mismatch: number;
+    notFound: number;
+    error: number;
+  };
+}
+
+// Input schemas for Apply Tags tools
+
+export const ListDiscoveryReportsInputSchema = z.object({
+  accountId: z.string().optional().describe('Filter by AWS account ID (optional)'),
+  directory: z
+    .string()
+    .optional()
+    .describe('Custom reports directory (optional, defaults to ./reports)'),
+});
+
+export const ParseDiscoveryReportInputSchema = z.object({
+  reportPath: z.string().describe('Path to the discovery report file'),
+});
+
+export const ApplyTagsViaApiInputSchema = z.object({
+  resources: z
+    .array(
+      z.object({
+        arn: z.string(),
+        type: z.enum(['ecs-service', 'rds-db']),
+        tags: z.object({
+          'lights-out:managed': z.enum(['true', 'false']),
+          'lights-out:project': z.string(),
+          'lights-out:priority': z.string(),
+        }),
+      })
+    )
+    .min(1)
+    .describe('Resources to tag'),
+  dryRun: z.boolean().optional().default(false).describe('Preview mode (no actual changes)'),
+  profile: z.string().optional().describe('AWS profile name (optional)'),
+});
+
+export const VerifyTagsInputSchema = z.object({
+  resources: z
+    .array(
+      z.object({
+        arn: z.string(),
+        type: z.enum(['ecs-service', 'rds-db']),
+        expectedTags: z.object({
+          'lights-out:managed': z.enum(['true', 'false']),
+          'lights-out:project': z.string(),
+          'lights-out:priority': z.string(),
+        }),
+      })
+    )
+    .min(1)
+    .describe('Resources to verify'),
+  profile: z.string().optional().describe('AWS profile name (optional)'),
+});
+
+export type ListDiscoveryReportsInput = z.infer<typeof ListDiscoveryReportsInputSchema>;
+export type ParseDiscoveryReportInput = z.infer<typeof ParseDiscoveryReportInputSchema>;
+export type ApplyTagsViaApiInput = z.infer<typeof ApplyTagsViaApiInputSchema>;
+export type VerifyTagsInput = z.infer<typeof VerifyTagsInputSchema>;

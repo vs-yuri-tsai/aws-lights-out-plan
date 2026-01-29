@@ -13,7 +13,6 @@ import type {
   DependencyRiskItem,
   ServiceGroup,
   EcsServiceInfo,
-  IacScanResult,
   BackendProjectAnalysis,
   RiskLevel,
 } from '../types.js';
@@ -69,13 +68,6 @@ function extractEcsDependencyEdges(services: EcsServiceInfo[]): DependencyEdge[]
   }
 
   return edges;
-}
-
-/**
- * Extract dependency edges from IaC scan result
- */
-function extractIacDependencyEdges(iacResult: IacScanResult): DependencyEdge[] {
-  return iacResult.dependencyGraph || [];
 }
 
 /**
@@ -295,10 +287,9 @@ function calculateStartupShutdownOrder(
  */
 export async function analyzeDependencies(input: {
   ecsServices?: EcsServiceInfo[];
-  iacScanResult?: IacScanResult;
   backendAnalysis?: BackendProjectAnalysis[];
 }): Promise<DependencyAnalysisResult> {
-  const { ecsServices = [], iacScanResult, backendAnalysis = [] } = input;
+  const { ecsServices = [], backendAnalysis = [] } = input;
 
   // Extract service nodes
   const services: ServiceNode[] = [];
@@ -315,12 +306,6 @@ export async function analyzeDependencies(input: {
     allEdges.push(...ecsEdges);
   }
 
-  // From IaC
-  if (iacScanResult?.success && iacScanResult.dependencyGraph) {
-    // IaC edges are already in the result
-    allEdges.push(...extractIacDependencyEdges(iacScanResult));
-  }
-
   // From backend analysis
   if (backendAnalysis.length > 0) {
     // Add backend service names to known services if they match ECS services
@@ -331,7 +316,9 @@ export async function analyzeDependencies(input: {
         const matchingEcs = ecsServices.find(
           (s) =>
             s.serviceName.toLowerCase().includes(serviceName.toLowerCase()) ||
-            serviceName.toLowerCase().includes(s.serviceName.toLowerCase().replace(/-dev|-staging|-prod/g, ''))
+            serviceName
+              .toLowerCase()
+              .includes(s.serviceName.toLowerCase().replace(/-dev|-staging|-prod/g, ''))
         );
         if (!matchingEcs) {
           services.push({
