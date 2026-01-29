@@ -17,6 +17,7 @@ import {
 import { verifyCredentials } from './tools/verifyCredentials.js';
 import { discoverEcsServices } from './tools/discoverEcs.js';
 import { discoverRdsInstances } from './tools/discoverRds.js';
+import { discoverAsgGroups } from './tools/discoverAsg.js';
 import { listAvailableRegions } from './tools/listRegions.js';
 import { scanBackendProject } from './tools/scanBackendProject.js';
 import { analyzeDependencies } from './tools/analyzeDependencies.js';
@@ -28,6 +29,7 @@ import {
   VerifyCredentialsInputSchema,
   DiscoverEcsInputSchema,
   DiscoverRdsInputSchema,
+  DiscoverAsgInputSchema,
   ScanBackendProjectInputSchema,
   AnalyzeDependenciesInputSchema,
   ListDiscoveryReportsInputSchema,
@@ -94,6 +96,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: 'discover_rds_instances',
         description:
           'Discover all RDS instances in specified AWS regions, including tags, configuration, Aurora cluster membership, read replica status, and Lights Out compatibility analysis',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            regions: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'AWS regions to scan (e.g., ["ap-southeast-1", "us-east-1"])',
+            },
+          },
+          required: ['regions'],
+        },
+      },
+      {
+        name: 'discover_asg_groups',
+        description:
+          'Discover all EC2 Auto Scaling Groups in specified AWS regions, including capacity configuration, scaling policies, scheduled actions, suspended processes, and Lights Out compatibility analysis',
         inputSchema: {
           type: 'object',
           properties: {
@@ -300,6 +318,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
       case 'discover_rds_instances': {
         const input = DiscoverRdsInputSchema.parse(args);
         const result = await discoverRdsInstances(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'discover_asg_groups': {
+        const input = DiscoverAsgInputSchema.parse(args);
+        const result = await discoverAsgGroups(input);
         return {
           content: [
             {

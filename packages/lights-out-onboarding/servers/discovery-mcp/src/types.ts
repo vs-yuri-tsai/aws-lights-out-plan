@@ -253,6 +253,64 @@ export type DiscoverEcsInput = z.infer<typeof DiscoverEcsInputSchema>;
 export type DiscoverRdsInput = z.infer<typeof DiscoverRdsInputSchema>;
 
 // ============================================================================
+// EC2 Auto Scaling Group Types
+// ============================================================================
+
+/**
+ * Lights Out support level for ASG
+ */
+export type AsgLightsOutSupport =
+  | 'supported' // 可啟停
+  | 'already-stopped' // 已停止 (min=0, max=0, desired=0)
+  | 'not-recommended'; // 生產環境或關鍵 ASG
+
+/**
+ * ASG configuration analysis for Lights Out compatibility
+ */
+export interface AsgConfigAnalysis {
+  /** Support level for Lights Out operations */
+  supportLevel: AsgLightsOutSupport;
+  /** Risk level */
+  riskLevel: RiskLevel;
+  /** Reasons explaining the analysis */
+  reasons: string[];
+  /** Recommendations for this ASG */
+  recommendations: string[];
+  /** Warning messages if any */
+  warnings: string[];
+}
+
+/**
+ * EC2 Auto Scaling Group information
+ */
+export interface AsgGroupInfo {
+  region: string;
+  asgName: string;
+  arn: string;
+  minSize: number;
+  maxSize: number;
+  desiredCapacity: number;
+  instances: number;
+  inServiceInstances: number;
+  suspendedProcesses: string[];
+  tags: Record<string, string>;
+  hasLightsOutTags: boolean;
+  launchTemplateId?: string;
+  launchTemplateName?: string;
+  launchConfigurationName?: string;
+  hasScalingPolicies: boolean;
+  hasScheduledActions: boolean;
+  mixedInstancesPolicy: boolean;
+  configAnalysis: AsgConfigAnalysis;
+}
+
+export const DiscoverAsgInputSchema = z.object({
+  regions: z.array(z.string()).min(1).describe('AWS regions to scan'),
+});
+
+export type DiscoverAsgInput = z.infer<typeof DiscoverAsgInputSchema>;
+
+// ============================================================================
 // Dependency Edge Type (shared)
 // ============================================================================
 

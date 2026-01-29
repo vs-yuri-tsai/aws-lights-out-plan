@@ -5,6 +5,7 @@
 export { verifyCredentials } from './verifyCredentials.js';
 export { discoverEcsServices } from './discoverEcs.js';
 export { discoverRdsInstances } from './discoverRds.js';
+export { discoverAsgGroups } from './discoverAsg.js';
 export { listAvailableRegions } from './listRegions.js';
 
 // Apply Tags tools

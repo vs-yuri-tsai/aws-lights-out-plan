@@ -139,6 +139,7 @@ options:
 
 - `discover_ecs_services(regions)`
 - `discover_rds_instances(regions)`
+- `discover_asg_groups(regions)`
 
 **探索時顯示：**
 
@@ -153,6 +154,7 @@ options:
 發現的資源：
 - ECS Services: {ecs_count} 個
 - RDS Instances: {rds_count} 個
+- Auto Scaling Groups: {asg_count} 個
 - 已配置 lights-out tags: {tagged_count} 個
 ```
 
@@ -239,12 +241,13 @@ options:
 
 ## 摘要
 
-| 指標                 | 數值                                          |
-| -------------------- | --------------------------------------------- |
-| ECS Services         | {ecs_count}                                   |
-| RDS Instances        | {rds_count}                                   |
-| 已有 Lights Out Tags | {tagged_count}                                |
-| 建議納入管理         | {ecs_recommended} ECS + {rds_recommended} RDS |
+| 指標                 | 數值                                                                  |
+| -------------------- | --------------------------------------------------------------------- |
+| ECS Services         | {ecs_count}                                                           |
+| RDS Instances        | {rds_count}                                                           |
+| Auto Scaling Groups  | {asg_count}                                                           |
+| 已有 Lights Out Tags | {tagged_count}                                                        |
+| 建議納入管理         | {ecs_recommended} ECS + {rds_recommended} RDS + {asg_recommended} ASG |
 
 ---
 
@@ -281,6 +284,31 @@ options:
 - 如果需要管理，需要：
   1. {步驟 1}
   2. {步驟 2}
+
+---
+
+## Auto Scaling Groups
+
+| Region   | ASG Name   | 容量 (desired/min/max) | 實例數 (InService/Total) | Suspended Processes | Scaling Policies | 風險等級        | Lights Out 支援                                        |
+| -------- | ---------- | ---------------------- | ------------------------ | ------------------- | ---------------- | --------------- | ------------------------------------------------------ |
+| {region} | {asg_name} | {desired}/{min}/{max}  | {inService}/{total}      | ✅ 無 / ⚠️ {count}  | ✅ 有 / ❌ 無    | low/medium/high | ✅ supported / ⚠️ already-stopped / ❌ not-recommended |
+
+### 高風險 ASG 說明
+
+**{asg_name} ({risk_level} risk):**
+
+- {風險原因，使用 bullet points}
+- 建議：
+  - {具體建議 1}
+  - {具體建議 2}
+
+### 已停止的 ASG
+
+**{asg_name}:**
+
+- 目前狀態：min=0, max=0, desired=0
+- 可能原因：已被 Lights Out 或手動停止
+- 建議：確認是否需要納入 Lights Out 管理
 
 ---
 
@@ -321,12 +349,13 @@ graph TD
 
 根據目前 Lights Out Lambda 的實作：
 
-| 資源類型           | 支援程度    | 說明                                    |
-| ------------------ | ----------- | --------------------------------------- |
-| ECS Service        | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式    |
-| RDS DB Instance    | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot |
-| RDS Aurora Cluster | ❌ 不支援   | 需透過 cluster 啟停，目前未實作         |
-| RDS Read Replica   | ❌ 不支援   | 無法獨立停止                            |
+| 資源類型               | 支援程度    | 說明                                           |
+| ---------------------- | ----------- | ---------------------------------------------- |
+| ECS Service            | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式           |
+| RDS DB Instance        | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot        |
+| EC2 Auto Scaling Group | ✅ 完全支援 | Suspend/Resume processes，Fire-and-forget 模式 |
+| RDS Aurora Cluster     | ❌ 不支援   | 需透過 cluster 啟停，目前未實作                |
+| RDS Read Replica       | ❌ 不支援   | 無法獨立停止                                   |
 
 ---
 
@@ -369,6 +398,18 @@ resource_defaults:
   rds-db:
     waitAfterCommand: 60
     skipSnapshot: true # 開發環境建議跳過 snapshot 以節省成本
+
+  autoscaling-group:
+    suspendProcesses: true
+    waitAfterCommand: 30
+    start:
+      minSize: 2
+      maxSize: 10
+      desiredCapacity: 2
+    stop:
+      minSize: 0
+      maxSize: 0
+      desiredCapacity: 0
 
 schedules:
   - name: weekday-schedule
@@ -713,6 +754,7 @@ options:
 | `scan_backend_project`   | 掃描後端專案，分析 HTTP 呼叫和環境變數 |
 | `discover_ecs_services`  | 探索 ECS Services，包含環境變數分析    |
 | `discover_rds_instances` | 探索 RDS Instances                     |
+| `discover_asg_groups`    | 探索 EC2 Auto Scaling Groups           |
 | `analyze_dependencies`   | 整合相依性分析，產出風險評估和啟停順序 |
 
 ---
@@ -721,10 +763,11 @@ options:
 
 - 此命令只會讀取 AWS 資源資訊，不會進行任何修改
 - 探索需要以下 IAM 權限：
-- `ecs:ListClusters`, `ecs:ListServices`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`
-- `rds:DescribeDBInstances`
-- `application-autoscaling:DescribeScalableTargets`
-- `sts:GetCallerIdentity`
+  - `ecs:ListClusters`, `ecs:ListServices`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`
+  - `rds:DescribeDBInstances`
+  - `autoscaling:DescribeAutoScalingGroups`, `autoscaling:DescribePolicies`, `autoscaling:DescribeScheduledActions`
+  - `application-autoscaling:DescribeScalableTargets`
+  - `sts:GetCallerIdentity`
 - 如果帳號中資源較多，探索過程可能需要一些時間
 
 ```

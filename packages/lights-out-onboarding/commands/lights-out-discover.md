@@ -76,6 +76,7 @@ options:
 
 - `discover_ecs_services(regions)`
 - `discover_rds_instances(regions)`
+- `discover_asg_groups(regions)`
 
 **探索時顯示：**
 
@@ -90,6 +91,7 @@ options:
 發現的資源：
 - ECS Services: {ecs_count} 個
 - RDS Instances: {rds_count} 個
+- Auto Scaling Groups: {asg_count} 個
 - 已配置 lights-out tags: {tagged_count} 個
 ```
 
@@ -119,6 +121,7 @@ options:
 | -------------------- | ------------------- |
 | ECS Services         | {ecs_count}         |
 | RDS Instances        | {rds_count}         |
+| Auto Scaling Groups  | {asg_count}         |
 | 已有 Lights Out Tags | {tagged_count}      |
 | 建議納入管理         | {recommended_count} |
 
@@ -148,16 +151,29 @@ options:
 
 ---
 
+## Auto Scaling Groups
+
+| Region   | ASG Name   | 容量 (desired/min/max) | 實例數 | Suspended Processes | 風險等級          | Lights Out 支援                             |
+| -------- | ---------- | ---------------------- | ------ | ------------------- | ----------------- | ------------------------------------------- |
+| {region} | {asg_name} | {desired}/{min}/{max}  | {n}    | {yes/no}            | {low/medium/high} | {supported/already-stopped/not-recommended} |
+
+### 高風險 ASG 說明
+
+{對於 high risk 的 ASG，列出原因和建議}
+
+---
+
 ## Lights Out 支援程度對照
 
 根據目前 Lights Out Lambda 的實作：
 
-| 資源類型           | 支援程度    | 說明                                    |
-| ------------------ | ----------- | --------------------------------------- |
-| ECS Service        | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式    |
-| RDS DB Instance    | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot |
-| RDS Aurora Cluster | ❌ 不支援   | 需透過 cluster 啟停，目前未實作         |
-| RDS Read Replica   | ❌ 不支援   | 無法獨立停止                            |
+| 資源類型               | 支援程度    | 說明                                           |
+| ---------------------- | ----------- | ---------------------------------------------- |
+| ECS Service            | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式           |
+| RDS DB Instance        | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot        |
+| EC2 Auto Scaling Group | ✅ 完全支援 | Suspend/Resume processes，Fire-and-forget 模式 |
+| RDS Aurora Cluster     | ❌ 不支援   | 需透過 cluster 啟停，目前未實作                |
+| RDS Read Replica       | ❌ 不支援   | 無法獨立停止                                   |
 
 ---
 
@@ -195,6 +211,18 @@ resource_defaults:
   rds-db:
     waitAfterCommand: 60
     skipSnapshot: true
+
+  autoscaling-group:
+    suspendProcesses: true
+    waitAfterCommand: 30
+    start:
+      minSize: 2
+      maxSize: 10
+      desiredCapacity: 2
+    stop:
+      minSize: 0
+      maxSize: 0
+      desiredCapacity: 0
 ```
 
 ### 需要注意的資源
@@ -315,12 +343,13 @@ options:
 
 此命令使用 `lights-out-discovery` MCP Server 提供的以下 tools：
 
-| Tool | 用途 |
-|------|------|
-| `verify_credentials` | 驗證 AWS 認證 |
+| Tool                     | 用途                         |
+| ------------------------ | ---------------------------- |
+| `verify_credentials`     | 驗證 AWS 認證                |
 | `list_available_regions` | 取得按地區分組的 AWS regions 列表 |
-| `discover_ecs_services` | 探索 ECS Services |
-| `discover_rds_instances` | 探索 RDS Instances |
+| `discover_ecs_services`  | 探索 ECS Services            |
+| `discover_rds_instances` | 探索 RDS Instances           |
+| `discover_asg_groups`    | 探索 EC2 Auto Scaling Groups |
 
 ---
 
@@ -328,9 +357,10 @@ options:
 
 - 此命令只會讀取 AWS 資源資訊，不會進行任何修改
 - 探索需要以下 IAM 權限：
-- `ecs:ListClusters`, `ecs:ListServices`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`
-- `rds:DescribeDBInstances`
-- `application-autoscaling:DescribeScalableTargets`
-- `sts:GetCallerIdentity`
+  - `ecs:ListClusters`, `ecs:ListServices`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`
+  - `rds:DescribeDBInstances`
+  - `autoscaling:DescribeAutoScalingGroups`, `autoscaling:DescribePolicies`, `autoscaling:DescribeScheduledActions`
+  - `application-autoscaling:DescribeScalableTargets`
+  - `sts:GetCallerIdentity`
 - 如果帳號中資源較多，探索過程可能需要一些時間
 ```
