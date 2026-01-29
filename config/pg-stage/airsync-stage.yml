@@ -3,7 +3,6 @@ environment: pg-stage-airsync-stage
 region_groups:
   asia:
     - ap-southeast-1
-    - ap-northeast-1
   america:
     - us-east-1
 group_schedules:
