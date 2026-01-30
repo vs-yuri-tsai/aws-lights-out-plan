@@ -309,50 +309,6 @@ export interface RDSResourceDefaults {
 }
 
 /**
- * Schedule action configuration for start or stop operations.
- * Used in group_schedules for regional scheduling.
- */
-export interface ScheduleActionConfig {
-  /**
-   * Cron expression in AWS EventBridge format.
-   * Example: '0 13 ? * MON-FRI *' (08:00 EST in UTC)
-   */
-  expression: string;
-
-  /**
-   * Human-readable description of the schedule.
-   */
-  description?: string;
-
-  /**
-   * Whether this schedule is enabled.
-   */
-  enabled: boolean;
-}
-
-/**
- * Group schedule configuration for a region group.
- * Defines start and stop schedules for resources in a specific region group.
- */
-export interface GroupScheduleConfig {
-  /**
-   * Timezone for display purposes (actual cron is always in UTC).
-   * Example: 'Asia/Taipei', 'America/New_York'
-   */
-  timezone?: string;
-
-  /**
-   * Start schedule configuration.
-   */
-  start: ScheduleActionConfig;
-
-  /**
-   * Stop schedule configuration.
-   */
-  stop: ScheduleActionConfig;
-}
-
-/**
  * Region groups mapping.
  * Maps group names to arrays of AWS region codes.
  *
@@ -365,16 +321,21 @@ export interface GroupScheduleConfig {
 export type RegionGroups = Record<string, string[]>;
 
 /**
- * Group schedules mapping.
+ * Group schedules mapping (human-readable format).
  * Maps group names to their schedule configurations.
  *
+ * Note: This is converted to group_schedules_cron by generate-cron.js.
+ * Lambda does not use group_schedules at runtime (only region_groups is used),
+ * so this type is kept loose to accept any format.
+ *
+ * Expected format in config YAML:
  * @example
  * {
- *   asia: { timezone: 'Asia/Taipei', start: {...}, stop: {...} },
- *   america: { timezone: 'America/New_York', start: {...}, stop: {...} }
+ *   asia: { timezone: 'Asia/Taipei', startTime: '08:00', stopTime: '22:00', activeDays: ['MON', ...], enabled: true },
+ *   america: { timezone: 'America/New_York', startTime: '08:00', stopTime: '18:00', activeDays: ['MON', ...], enabled: true }
  * }
  */
-export type GroupSchedules = Record<string, GroupScheduleConfig>;
+export type GroupSchedules = Record<string, Record<string, unknown>>;
 
 /**
  * Configuration from SSM Parameter Store.
@@ -397,7 +358,7 @@ export interface NotificationConfig {
 }
 
 export interface Config {
-  version: string;
+  version?: string; // Optional, not used at runtime
   environment: string;
   regions?: string[]; // Optional list of AWS regions to scan (legacy, for backward compatibility)
 

@@ -22,17 +22,20 @@ function getAvailableTargets() {
   const files = fs.readdirSync(argsDir);
 
   return files
-    .filter(file => file.endsWith('.json'))
-    .map(file => {
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => {
       const targetName = file.replace('.json', '');
       const argPath = path.join(argsDir, file);
       const args = JSON.parse(fs.readFileSync(argPath, 'utf8'));
 
       // Read scope from arguments file
       const scope = args.scope || 'unknown scope';
-      const scopeLabel = scope === 'project' ? 'project scope' :
-                        scope === 'aws-account' ? 'aws account scope' :
-                        scope;
+      const scopeLabel =
+        scope === 'project'
+          ? 'project scope'
+          : scope === 'aws-account'
+            ? 'aws account scope'
+            : scope;
 
       return {
         title: `${targetName} (${args.region})`,
@@ -86,13 +89,14 @@ const MODES = {
     title: 'Serverless Deployment',
     choices: [
       {
-        title: '🚀 All                              - Full Serverless deployment (infrastructure + Lambda)',
+        title:
+          '🚀 All                              - Full Serverless deployment (infrastructure + Lambda)',
         value: 'all',
       },
       {
         title: '⚡ Lambda: Handler function         - Deploy only the Lambda `handler` function',
         value: 'lambda-function-handler',
-      }
+      },
     ],
     customCommand: true,
   },
@@ -199,12 +203,12 @@ async function main() {
         const configPath = projectArgs.config?.path;
         const command = `node scripts/generate-cron.js --config ${configPath} && serverless deploy --region ${region} --stage ${stage} --verbose`;
         execSync(command, { stdio: 'inherit', env });
-      } else if( selectedValue.startsWith('lambda-function-')) {
+      } else if (selectedValue.startsWith('lambda-function-')) {
         // Lambda-only deployment
         const functionName = selectedValue.replace('lambda-function-', '');
         const command = `serverless deploy function -f ${functionName} --region ${region} --stage ${stage} --verbose`;
         execSync(command, { stdio: 'inherit', env });
-      } 
+      }
 
       return;
     }
@@ -225,7 +229,6 @@ async function main() {
     const command = `node "${runScript}" --project ${projectName} --script ${scriptName}${actionParam}`;
 
     execSync(command, { stdio: 'inherit' });
-
   } catch (error) {
     console.error('\n❌ Error:', error.message);
     process.exit(1);

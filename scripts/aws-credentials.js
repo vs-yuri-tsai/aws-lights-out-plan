@@ -45,12 +45,15 @@ function setupAwsCredentials(profile, baseEnv = process.env) {
     );
 
     // Parse and set credentials as environment variables
-    credentialsJson.trim().split('\n').forEach(line => {
-      const [key, value] = line.split('=');
-      if (key && value) {
-        env[key] = value;
-      }
-    });
+    credentialsJson
+      .trim()
+      .split('\n')
+      .forEach((line) => {
+        const [key, value] = line.split('=');
+        if (key && value) {
+          env[key] = value;
+        }
+      });
 
     console.log('✅ SSO credentials exported successfully');
   } catch (error) {

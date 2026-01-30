@@ -1152,28 +1152,32 @@ describe('Orchestrator', () => {
       );
     });
 
-    it('should use legacy regions when no targetGroup is specified', async () => {
+    it('should merge all region_groups when no targetGroup is specified', async () => {
       const configWithBoth: Config = {
         ...sampleConfig,
         region_groups: {
           asia: ['ap-southeast-1'],
           america: ['us-east-1'],
         },
-        regions: ['eu-west-1'], // Legacy regions
+        regions: ['eu-west-1'], // Legacy regions (ignored when region_groups exists)
       };
 
-      // No targetGroup specified
+      // No targetGroup specified - should merge all region_groups
       orchestrator = new Orchestrator(configWithBoth);
       mockDiscoverFn.mockResolvedValue([]);
 
       await orchestrator.discoverResources();
 
-      // Should use legacy regions when no targetGroup
+      // Should merge all region_groups (unique regions)
+      // Note: Set iteration order is insertion order, so we check for both regions
       expect(TagDiscoveryMock).toHaveBeenCalledWith(
         { 'lights-out:managed': 'true' },
         ['ecs:service', 'rds:db'],
-        ['eu-west-1']
+        expect.arrayContaining(['ap-southeast-1', 'us-east-1'])
       );
+      // Verify only 2 regions (no duplicates, no legacy regions)
+      const calledRegions = TagDiscoveryMock.mock.calls[0][2];
+      expect(calledRegions).toHaveLength(2);
     });
 
     it('should handle empty region_groups array for a targetGroup', async () => {
@@ -1196,6 +1200,93 @@ describe('Orchestrator', () => {
         ['ecs:service', 'rds:db'],
         ['fallback-region']
       );
+    });
+
+    it('should deduplicate regions when merging region_groups', async () => {
+      const configWithDuplicates: Config = {
+        ...sampleConfig,
+        region_groups: {
+          asia: ['ap-southeast-1', 'ap-northeast-1'],
+          backup: ['ap-southeast-1'], // Duplicate region
+        },
+      };
+
+      orchestrator = new Orchestrator(configWithDuplicates);
+      mockDiscoverFn.mockResolvedValue([]);
+
+      await orchestrator.discoverResources();
+
+      // Should deduplicate regions
+      const calledRegions = TagDiscoveryMock.mock.calls[0][2];
+      expect(calledRegions).toHaveLength(2); // Only unique regions
+      expect(calledRegions).toContain('ap-southeast-1');
+      expect(calledRegions).toContain('ap-northeast-1');
+    });
+
+    it('should fallback to legacy regions when region_groups is empty object', async () => {
+      const configWithEmptyRegionGroups: Config = {
+        ...sampleConfig,
+        region_groups: {}, // Empty object
+        regions: ['eu-west-1'],
+      };
+
+      orchestrator = new Orchestrator(configWithEmptyRegionGroups);
+      mockDiscoverFn.mockResolvedValue([]);
+
+      await orchestrator.discoverResources();
+
+      // Should fallback to legacy regions
+      expect(TagDiscoveryMock).toHaveBeenCalledWith(
+        { 'lights-out:managed': 'true' },
+        ['ecs:service', 'rds:db'],
+        ['eu-west-1']
+      );
+    });
+
+    it('should fallback to legacy regions when all region_groups are empty arrays', async () => {
+      const configWithAllEmptyGroups: Config = {
+        ...sampleConfig,
+        region_groups: {
+          asia: [],
+          america: [],
+        },
+        regions: ['eu-central-1'],
+      };
+
+      orchestrator = new Orchestrator(configWithAllEmptyGroups);
+      mockDiscoverFn.mockResolvedValue([]);
+
+      await orchestrator.discoverResources();
+
+      // Should fallback to legacy regions when all groups are empty
+      expect(TagDiscoveryMock).toHaveBeenCalledWith(
+        { 'lights-out:managed': 'true' },
+        ['ecs:service', 'rds:db'],
+        ['eu-central-1']
+      );
+    });
+
+    it('should merge region_groups without legacy regions fallback when region_groups has data', async () => {
+      const configWithOnlyRegionGroups: Config = {
+        ...sampleConfig,
+        region_groups: {
+          asia: ['ap-southeast-1'],
+          america: ['us-east-1', 'us-west-2'],
+        },
+        // No legacy regions field
+      };
+
+      orchestrator = new Orchestrator(configWithOnlyRegionGroups);
+      mockDiscoverFn.mockResolvedValue([]);
+
+      await orchestrator.discoverResources();
+
+      // Should merge all region_groups
+      const calledRegions = TagDiscoveryMock.mock.calls[0][2];
+      expect(calledRegions).toHaveLength(3);
+      expect(calledRegions).toContain('ap-southeast-1');
+      expect(calledRegions).toContain('us-east-1');
+      expect(calledRegions).toContain('us-west-2');
     });
 
     it('should include targetGroup in discovery logging', async () => {
