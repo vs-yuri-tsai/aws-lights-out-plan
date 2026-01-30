@@ -36,3 +36,12 @@ schedules:
       - THU
       - FRI
     holidays: []
+schedules_cron:
+  start:
+    expression: 0 0 ? * MON-FRI *
+    description: Start resources at 08:00 Asia/Taipei (00:00 UTC)
+    enabled: true
+  stop:
+    expression: 0 11 ? * MON-FRI *
+    description: Stop resources at 19:00 Asia/Taipei (11:00 UTC)
+    enabled: true

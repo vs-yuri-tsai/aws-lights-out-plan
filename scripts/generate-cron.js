@@ -84,17 +84,23 @@ function validateScheduleEntry(schedule, context) {
   // Validate time format (HH:mm)
   const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
   if (!timeRegex.test(startTime)) {
-    throw new Error(`Invalid startTime format in ${context}: ${startTime}. Expected HH:mm (24-hour format)`);
+    throw new Error(
+      `Invalid startTime format in ${context}: ${startTime}. Expected HH:mm (24-hour format)`
+    );
   }
 
   if (!timeRegex.test(stopTime)) {
-    throw new Error(`Invalid stopTime format in ${context}: ${stopTime}. Expected HH:mm (24-hour format)`);
+    throw new Error(
+      `Invalid stopTime format in ${context}: ${stopTime}. Expected HH:mm (24-hour format)`
+    );
   }
 
   // Validate activeDays
   for (const day of activeDays) {
     if (!DAY_MAP[day]) {
-      throw new Error(`Invalid day in ${context}.activeDays: ${day}. Valid values: ${Object.keys(DAY_MAP).join(', ')}`);
+      throw new Error(
+        `Invalid day in ${context}.activeDays: ${day}. Valid values: ${Object.keys(DAY_MAP).join(', ')}`
+      );
     }
   }
 
@@ -102,7 +108,9 @@ function validateScheduleEntry(schedule, context) {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: timezone });
   } catch (error) {
-    throw new Error(`Invalid timezone in ${context}: ${timezone}. Must be a valid IANA timezone (e.g., Asia/Taipei)`);
+    throw new Error(
+      `Invalid timezone in ${context}: ${timezone}. Must be a valid IANA timezone (e.g., Asia/Taipei)`
+    );
   }
 }
 
@@ -362,10 +370,14 @@ async function main() {
     const mode = detectConfigMode(config);
 
     if (!mode) {
-      throw new Error('Config must contain either schedules.default (legacy) or group_schedules (regional)');
+      throw new Error(
+        'Config must contain either schedules.default (legacy) or group_schedules (regional)'
+      );
     }
 
-    console.log(`📋 Detected mode: ${mode === 'regional' ? 'Regional (group_schedules)' : 'Legacy (schedules.default)'}`);
+    console.log(
+      `📋 Detected mode: ${mode === 'regional' ? 'Regional (group_schedules)' : 'Legacy (schedules.default)'}`
+    );
 
     if (mode === 'regional') {
       // Regional mode: group_schedules

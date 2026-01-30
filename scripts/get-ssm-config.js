@@ -29,7 +29,7 @@ function parseArgs() {
 // Validate required parameters
 function validateParams(params) {
   const required = ['name', 'region'];
-  const missing = required.filter(key => !params[key]);
+  const missing = required.filter((key) => !params[key]);
 
   if (missing.length > 0) {
     console.error(`❌ Missing required parameters: ${missing.join(', ')}`);
@@ -83,11 +83,12 @@ async function main() {
     console.log(`\n📌 Parameter ARN: ${response.Parameter.ARN}`);
     console.log(`📌 Last Modified: ${response.Parameter.LastModifiedDate}`);
     console.log(`📌 Version: ${response.Parameter.Version}`);
-
   } catch (error) {
     console.error('\n❌ Error:', error.message);
     if (error.name === 'ParameterNotFound') {
-      console.error('\n💡 Hint: Make sure the parameter exists and you have the correct permissions.');
+      console.error(
+        '\n💡 Hint: Make sure the parameter exists and you have the correct permissions.'
+      );
       console.error('   You can create it using: npm run airsync-dev:set-config');
     }
     process.exit(1);

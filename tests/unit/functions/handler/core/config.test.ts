@@ -128,24 +128,22 @@ discovery: }invalid
       );
     });
 
-    it("should throw ConfigValidationError when required field 'version' is missing", async () => {
-      const invalidConfig = `
+    it("should accept config without 'version' field (version is optional)", async () => {
+      const configWithoutVersion = `
 environment: workshop
 discovery:
   method: tag-based
-`; // Corrected indentation and 'strategy' to 'method'
+`;
 
       ssmMock.on(GetParameterCommand).resolves({
         Parameter: {
-          Value: invalidConfig,
+          Value: configWithoutVersion,
         },
       });
 
-      await expect(loadConfigFromSsm('/test/parameter')).rejects.toThrow(ConfigValidationError);
-
-      await expect(loadConfigFromSsm('/test/parameter')).rejects.toThrow(
-        'Configuration validation failed'
-      );
+      const config = await loadConfigFromSsm('/test/parameter');
+      expect(config.environment).toBe('workshop');
+      expect(config.version).toBeUndefined();
     });
 
     it("should throw ConfigValidationError when required field 'environment' is missing", async () => {
@@ -764,71 +762,56 @@ group_schedules:
         expect(config.group_schedules?.america.stop.description).toBeUndefined();
       });
 
-      it('should reject group_schedules with missing start.expression', async () => {
-        const invalidConfig = `
+      // Note: group_schedules uses passthrough validation because Lambda does not use it at runtime.
+      // The human-readable format is converted to group_schedules_cron by generate-cron.js at deploy time.
+      // Therefore, these tests verify that any format is accepted.
+
+      it('should accept group_schedules with any format (passthrough validation)', async () => {
+        const configWithHumanReadableFormat = `
 version: "1.0"
 environment: test
 discovery:
   method: tag-based
 group_schedules:
   asia:
-    start:
-      enabled: true
-    stop:
-      expression: "0 14 ? * MON-FRI *"
-      enabled: true
+    timezone: Asia/Taipei
+    startTime: "08:00"
+    stopTime: "22:00"
+    activeDays:
+      - MON
+      - TUE
+      - WED
+      - THU
+      - FRI
+    enabled: true
 `;
 
         ssmMock.on(GetParameterCommand).resolves({
-          Parameter: { Value: invalidConfig },
+          Parameter: { Value: configWithHumanReadableFormat },
         });
 
-        await expect(loadConfigFromSsm('/test/parameter')).rejects.toThrow(ConfigValidationError);
+        const config = await loadConfigFromSsm('/test/parameter');
+        expect(config.group_schedules).toBeDefined();
+        expect(config.group_schedules?.asia).toBeDefined();
       });
 
-      it('should reject group_schedules with missing start.enabled', async () => {
-        const invalidConfig = `
+      it('should accept group_schedules with partial or missing fields (passthrough)', async () => {
+        const configWithPartialFields = `
 version: "1.0"
 environment: test
 discovery:
   method: tag-based
 group_schedules:
   asia:
-    start:
-      expression: "0 0 ? * MON-FRI *"
-    stop:
-      expression: "0 14 ? * MON-FRI *"
-      enabled: true
+    timezone: Asia/Taipei
 `;
 
         ssmMock.on(GetParameterCommand).resolves({
-          Parameter: { Value: invalidConfig },
+          Parameter: { Value: configWithPartialFields },
         });
 
-        await expect(loadConfigFromSsm('/test/parameter')).rejects.toThrow(ConfigValidationError);
-      });
-
-      it('should reject group_schedules with empty expression', async () => {
-        const invalidConfig = `
-version: "1.0"
-environment: test
-discovery:
-  method: tag-based
-group_schedules:
-  asia:
-    start:
-      expression: ""
-      enabled: true
-    stop:
-      expression: "0 14 ? * MON-FRI *"
-      enabled: true
-`;
-
-        ssmMock.on(GetParameterCommand).resolves({
-          Parameter: { Value: invalidConfig },
-        });
-
-        await expect(loadConfigFromSsm('/test/parameter')).rejects.toThrow(ConfigValidationError);
+        const config = await loadConfigFromSsm('/test/parameter');
+        expect(config.group_schedules?.asia).toBeDefined();
       });
 
       it('should accept multiple groups in group_schedules', async () => {

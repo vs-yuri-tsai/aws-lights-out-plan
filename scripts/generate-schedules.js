@@ -35,7 +35,7 @@ function resolveConfigPath(stage) {
   }
 
   // Scan all JSON files in arguments directory
-  const files = fs.readdirSync(argsDir).filter(file => file.endsWith('.json'));
+  const files = fs.readdirSync(argsDir).filter((file) => file.endsWith('.json'));
 
   for (const file of files) {
     try {
@@ -53,7 +53,9 @@ function resolveConfigPath(stage) {
   }
 
   // Fallback: assume config/{stage}.yml
-  console.warn(`[generate-schedules] No matching arguments file found for stage: ${stage}, using fallback: ${stage}.yml`);
+  console.warn(
+    `[generate-schedules] No matching arguments file found for stage: ${stage}, using fallback: ${stage}.yml`
+  );
   return `${stage}.yml`;
 }
 
