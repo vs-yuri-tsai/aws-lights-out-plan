@@ -35,9 +35,10 @@ export class Orchestrator {
   /**
    * Get the target regions to scan based on targetGroup.
    *
-   * If targetGroup is specified and region_groups is configured,
-   * returns only the regions in that group.
-   * Otherwise, falls back to the legacy regions field.
+   * Priority:
+   * 1. If targetGroup is specified and found in region_groups, use that group's regions
+   * 2. If no targetGroup but region_groups exists, merge all groups' regions (for manual invocation)
+   * 3. Fall back to legacy regions field
    *
    * @returns Array of AWS region codes to scan
    */
@@ -63,6 +64,28 @@ export class Orchestrator {
         },
         'Target group not found in region_groups, falling back to legacy regions'
       );
+    }
+
+    // If no targetGroup but region_groups exists, merge all groups' regions
+    // This is useful for manual invocation (discover, status) to see all resources
+    if (!this.targetGroup && this.config.region_groups) {
+      const allRegions = new Set<string>();
+      for (const regions of Object.values(this.config.region_groups)) {
+        if (Array.isArray(regions)) {
+          regions.forEach((r) => allRegions.add(r));
+        }
+      }
+      if (allRegions.size > 0) {
+        const mergedRegions = Array.from(allRegions);
+        logger.info(
+          {
+            regionGroups: Object.keys(this.config.region_groups),
+            mergedRegions,
+          },
+          'No targetGroup specified, merging all region_groups for discovery'
+        );
+        return mergedRegions;
+      }
     }
 
     // Fallback to legacy regions field

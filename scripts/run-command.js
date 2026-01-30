@@ -51,6 +51,8 @@ function buildCommand(scriptName, projectArgs, extraArgs = {}) {
   const args = [];
 
   // Script-specific argument mapping
+  // Note: invoke-lambda-handler uses arguments.json region (Lambda deployment region),
+  // NOT config.yml regions (which are the regions Lambda scans for resources)
   const argMappings = {
     'invoke-lambda-handler': {
       'function-name': projectArgs['function-name'],
