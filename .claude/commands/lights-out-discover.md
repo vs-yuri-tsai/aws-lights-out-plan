@@ -98,6 +98,7 @@ IaC 專案掃描結果：
 發現的資源定義：
 - ECS 相關: {ecsResources} 個
 - RDS 相關: {rdsResources} 個
+- Aurora Cluster 相關: {auroraClusterResources} 個
 - Auto Scaling 相關: {autoscalingResources} 個
 - Security Group 相關: {securityGroupResources} 個
 - Service Discovery 相關: {serviceDiscoveryResources} 個
@@ -152,9 +153,20 @@ options:
 ```
 發現的資源：
 - ECS Services: {ecs_count} 個
-- RDS Instances: {rds_count} 個
+- RDS Instances: {rds_count} 個（含 Aurora Cluster 成員）
+- Aurora Clusters: {aurora_cluster_count} 個（從 RDS instance 的 clusterIdentifier 推導）
 - 已配置 lights-out tags: {tagged_count} 個
 ```
+
+**Aurora Cluster 推導邏輯：**
+
+從 `discover_rds_instances` 結果中，將 `isAuroraClusterMember=true` 的 instances 按 `clusterIdentifier` 分組，推導出 Aurora Clusters 清單。每個 cluster 包含：
+
+- Cluster Identifier
+- Region
+- Engine（從成員 instance 取得）
+- Member Instance 數量
+- 是否有 Lights Out tags（檢查 cluster ARN 上的 tags）
 
 如果沒有發現任何資源：
 
@@ -239,12 +251,13 @@ options:
 
 ## 摘要
 
-| 指標                 | 數值                                          |
-| -------------------- | --------------------------------------------- |
-| ECS Services         | {ecs_count}                                   |
-| RDS Instances        | {rds_count}                                   |
-| 已有 Lights Out Tags | {tagged_count}                                |
-| 建議納入管理         | {ecs_recommended} ECS + {rds_recommended} RDS |
+| 指標                 | 數值                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| ECS Services         | {ecs_count}                                                                         |
+| RDS Instances        | {rds_count}                                                                         |
+| Aurora Clusters      | {aurora_cluster_count}                                                              |
+| 已有 Lights Out Tags | {tagged_count}                                                                      |
+| 建議納入管理         | {ecs_recommended} ECS + {rds_recommended} RDS + {aurora_recommended} Aurora Cluster |
 
 ---
 
@@ -277,10 +290,26 @@ options:
 **{類型} ({count} instances):**
 
 - {原因說明}
-- 目前 Lights Out Lambda **尚未實作** {功能}
 - 如果需要管理，需要：
   1. {步驟 1}
   2. {步驟 2}
+
+---
+
+## Aurora Clusters
+
+| Region   | Cluster ID   | 引擎     | 狀態     | Member Instances | 風險等級 | Lights Out 支援 |
+| -------- | ------------ | -------- | -------- | ---------------- | -------- | --------------- |
+| {region} | {cluster_id} | {engine} | {status} | {member_count}   | low      | ✅ supported    |
+
+> 💡 Aurora Cluster 停止時會自動停止所有 member instances。建議只標記 Cluster，不要同時標記 member instances。
+> Aurora Cluster 的 member instances 在 RDS Instances 表格中標記為 `❌ cluster-managed`，表示應透過 Cluster 管理。
+
+### Aurora Cluster 風險判定
+
+- **低風險**：標準 Provisioned Aurora Cluster，無特殊配置
+- **不支援**：Aurora Serverless v1（無法手動啟停）
+- **注意**：如同時存在標記了 `lights-out:managed` 的 member instances，應移除 instance 上的 tag，改為標記 Cluster
 
 ---
 
@@ -321,12 +350,12 @@ graph TD
 
 根據目前 Lights Out Lambda 的實作：
 
-| 資源類型           | 支援程度    | 說明                                    |
-| ------------------ | ----------- | --------------------------------------- |
-| ECS Service        | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式    |
-| RDS DB Instance    | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot |
-| RDS Aurora Cluster | ❌ 不支援   | 需透過 cluster 啟停，目前未實作         |
-| RDS Read Replica   | ❌ 不支援   | 無法獨立停止                            |
+| 資源類型         | 支援程度    | 說明                                                      |
+| ---------------- | ----------- | --------------------------------------------------------- |
+| ECS Service      | ✅ 完全支援 | 支援 Auto Scaling 模式和 Direct 模式                      |
+| RDS DB Instance  | ✅ 完全支援 | Fire-and-forget 模式，支援 skipSnapshot                   |
+| Aurora Cluster   | ✅ 完全支援 | Fire-and-forget 模式，停止會自動停止所有 member instances |
+| RDS Read Replica | ❌ 不支援   | 無法獨立停止                                              |
 
 ---
 
@@ -369,6 +398,10 @@ resource_defaults:
   rds-db:
     waitAfterCommand: 60
     skipSnapshot: true # 開發環境建議跳過 snapshot 以節省成本
+
+  rds-cluster:
+    waitAfterCommand: 60
+    # Aurora Cluster 不支援 skipSnapshot
 
 schedules:
   - name: weekday-schedule
@@ -417,6 +450,23 @@ aws rds add-tags-to-resource \
 ```
 
 > 💡 RDS 使用 priority=10（較小數字），確保先啟動、後關閉，讓 ECS 服務可以連線。
+
+#### E. Aurora Cluster
+
+**{cluster_id} (Aurora Cluster):**
+
+```bash
+aws rds add-tags-to-resource \
+  --resource-name arn:aws:rds:{region}:{account}:cluster:{cluster_id} \
+  --tags Key=lights-out:managed,Value=true \
+         Key=lights-out:env,Value=dev \
+         Key=lights-out:priority,Value=10 \
+  --region {region} \
+  --profile {profile}
+```
+
+> 💡 Aurora Cluster 使用 priority=10（與 RDS 相同），確保 DB 先啟動、後關閉。
+> ⚠️ 不要同時標記 Aurora Cluster 和其 member instances。只標記 Cluster 即可，停止 Cluster 會自動停止所有 member instances。
 
 ---
 
@@ -573,7 +623,7 @@ aws lambda invoke \
 
 **注意：**
 
-- 如果 Aurora Cluster 也能納入管理，預期可再節省更多
+- Aurora Cluster 已支援 Lights Out 管理，預期可節省可觀的 DB 成本
 - 實際節省會依據運算資源配置和使用時間有所不同
 
 ---
@@ -689,7 +739,7 @@ options:
 1. **Lights Out 支援判定（使用 configAnalysis.supportLevel）：**
 
 - `supported`: 標準 RDS instance，可直接啟停
-- `cluster-managed`: Aurora Cluster 成員，需透過 cluster 管理
+- `cluster-managed`: Aurora Cluster 成員，需透過 cluster 管理（不要標記 instance，標記 cluster）
 - `not-supported`: Read Replica 或 Aurora Serverless v1
 
 2. **特殊配置檢測：**
@@ -698,6 +748,28 @@ options:
 - Read Replica：檢查 `isReadReplica`
 - Aurora Serverless：檢查 `isAuroraServerless`
 - Multi-AZ：檢查 `multiAZ`（通常表示生產環境）
+
+### Aurora Cluster 分析規則
+
+1. **推導方式：**
+
+- 從 `discover_rds_instances` 結果中，篩選 `isAuroraClusterMember=true` 的 instances
+- 依 `clusterIdentifier` 分組，每組代表一個 Aurora Cluster
+
+2. **風險等級判定：**
+
+- `low`（低風險）：標準 Provisioned Aurora Cluster，無特殊配置 → **預設為低風險**
+- `not-supported`：Aurora Serverless v1（無法手動啟停）
+
+3. **Lights Out 支援判定：**
+
+- `supported`：Provisioned Aurora Cluster，可透過 `rds-cluster` handler 管理
+- `not-supported`：Aurora Serverless v1
+
+4. **分類規則：**
+
+- 低風險 Aurora Cluster → `autoApply`（建議直接套用 tags）
+- Aurora Serverless v1 → `excluded`
 
 ---
 
@@ -722,7 +794,7 @@ options:
 - 此命令只會讀取 AWS 資源資訊，不會進行任何修改
 - 探索需要以下 IAM 權限：
 - `ecs:ListClusters`, `ecs:ListServices`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`
-- `rds:DescribeDBInstances`
+- `rds:DescribeDBInstances`, `rds:DescribeDBClusters`
 - `application-autoscaling:DescribeScalableTargets`
 - `sts:GetCallerIdentity`
 - 如果帳號中資源較多，探索過程可能需要一些時間

@@ -181,7 +181,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'apply_tags_via_api',
         description:
-          'Apply Lights Out tags to AWS resources (ECS services, RDS instances) via AWS SDK APIs. Supports dry-run mode for preview.',
+          'Apply Lights Out tags to AWS resources (ECS services, RDS instances, Aurora clusters) via AWS SDK APIs. Supports dry-run mode for preview.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -192,7 +192,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: 'object',
                 properties: {
                   arn: { type: 'string' },
-                  type: { type: 'string', enum: ['ecs-service', 'rds-db'] },
+                  type: { type: 'string', enum: ['ecs-service', 'rds-db', 'rds-cluster'] },
                   tags: {
                     type: 'object',
                     properties: {
@@ -229,7 +229,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: 'object',
                 properties: {
                   arn: { type: 'string' },
-                  type: { type: 'string', enum: ['ecs-service', 'rds-db'] },
+                  type: { type: 'string', enum: ['ecs-service', 'rds-db', 'rds-cluster'] },
                   expectedTags: {
                     type: 'object',
                     properties: {

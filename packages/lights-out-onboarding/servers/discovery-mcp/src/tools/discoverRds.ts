@@ -63,7 +63,9 @@ function analyzeRdsConfig(instance: {
     supportLevel = 'cluster-managed';
     reasons.push('Aurora Cluster 成員 - 需透過 cluster 啟停');
     recommendations.push('使用 rds-cluster 類型而非 rds-db 來管理此資源');
-    warnings.push('目前 Lights Out 不支援 Aurora Cluster 啟停，需要手動處理');
+    warnings.push(
+      'Aurora Cluster 成員應透過 rds-cluster 類型統一管理，避免與 cluster 層級操作衝突'
+    );
   }
 
   // Check Multi-AZ

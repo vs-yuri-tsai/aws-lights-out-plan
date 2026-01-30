@@ -149,7 +149,7 @@ export async function applyTagsViaApi(input: ApplyTagsViaApiInput): Promise<Appl
 
     if (resource.type === 'ecs-service') {
       result = await applyEcsTags(resource, profile, dryRun);
-    } else if (resource.type === 'rds-db') {
+    } else if (resource.type === 'rds-db' || resource.type === 'rds-cluster') {
       result = await applyRdsTags(resource, profile, dryRun);
     } else {
       result = {

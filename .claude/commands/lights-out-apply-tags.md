@@ -106,11 +106,20 @@ options:
 ```
 預設標籤配置：
 
-| 標籤名稱              | 預設值         | 說明                                    |
-|-----------------------|----------------|----------------------------------------|
-| lights-out:managed    | true           | 標記為 Lights Out 管理的資源            |
-| lights-out:project    | {project}      | 專案名稱（從 cluster 名稱提取或手動輸入）|
-| lights-out:priority   | 10/50          | 啟停順序（RDS=10 先啟後關, ECS=50 後啟先關）|
+| 標籤名稱              | 預設值             | 說明                                    |
+|-----------------------|--------------------|----------------------------------------|
+| lights-out:managed    | true               | 標記為 Lights Out 管理的資源            |
+| lights-out:project    | {project}          | 專案名稱（從 cluster 名稱提取或手動輸入）|
+| lights-out:priority   | 依資源類型（見下） | 啟停順序（數字越小越優先啟動）          |
+
+**Priority 依資源類型定義：**
+
+| 資源類型           | 預設 Priority | 說明                                         |
+|--------------------|--------------|----------------------------------------------|
+| Aurora Cluster     | `10`         | DB 先啟動、後關閉，讓 ECS 服務可連線         |
+| RDS DB Instance    | `10`         | 與 Aurora Cluster 相同等級                   |
+| ECS Service (低風險) | `50`       | 後啟動、先關閉（等 DB 就緒再啟動）           |
+| ECS Service (高風險) | `100`      | 最後啟動、最先關閉（需要更多保護）           |
 ```
 
 ### Step 3.3: 確認預設標籤
@@ -160,9 +169,16 @@ options:
 | Instance ID                              | Region    | 建議標籤                                       |
 |------------------------------------------|-----------|------------------------------------------------|
 | vs-account-service-postgres-dev          | us-east-1 | managed=true, project=vs-account, priority=10  |
+
+### Aurora Clusters ({count} 個)
+
+| Cluster ID                               | Region    | 建議標籤                                        |
+|------------------------------------------|-----------|------------------------------------------------|
+| vs-account-aurora-cluster-dev            | us-east-1 | managed=true, project=vs-account, priority=10  |
 ```
 
-> 💡 RDS priority=10（小數字）確保先啟動、後關閉，ECS priority=50 確保後啟動、先關閉。
+> 💡 RDS/Aurora priority=10（小數字）確保 DB 先啟動、後關閉，ECS priority=50 確保後啟動、先關閉。
+> ⚠️ Aurora Cluster 的 member instances 不需要單獨標記，停止 Cluster 會自動停止所有 member instances。
 
 ---
 
@@ -245,6 +261,7 @@ AWS 帳號資訊：
 | vs-auth-dev                        | ecs-service  | managed=true, project=vs-account, priority=50 |
 | vs-account-dev                     | ecs-service  | managed=true, project=vs-account, priority=50 |
 | vs-account-service-postgres-dev    | rds-db       | managed=true, project=vs-account, priority=10 |
+| vs-account-aurora-cluster-dev      | rds-cluster  | managed=true, project=vs-account, priority=10 |
 ```
 
 使用 AskUserQuestion 確認：
@@ -578,7 +595,8 @@ IaC 修改建議已儲存至：
     "ecs:TagResource",
     "ecs:ListTagsForResource",
     "rds:AddTagsToResource",
-    "rds:ListTagsForResource"
+    "rds:ListTagsForResource",
+    "rds:DescribeDBClusters"
   ],
   "Resource": "*"
 }

@@ -196,7 +196,7 @@ export async function verifyTags(input: VerifyTagsInput): Promise<VerifyTagsResu
 
     if (resource.type === 'ecs-service') {
       result = await verifyEcsTags(resource.arn, resource.expectedTags, profile);
-    } else if (resource.type === 'rds-db') {
+    } else if (resource.type === 'rds-db' || resource.type === 'rds-cluster') {
       result = await verifyRdsTags(resource.arn, resource.expectedTags, profile);
     } else {
       result = {

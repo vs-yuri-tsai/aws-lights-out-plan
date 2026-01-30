@@ -558,7 +558,7 @@ export interface ResourceToTag {
   /** Resource ARN */
   arn: string;
   /** Resource type */
-  type: 'ecs-service' | 'rds-db';
+  type: 'ecs-service' | 'rds-db' | 'rds-cluster';
   /** Tags to apply */
   tags: LightsOutTags;
 }
@@ -568,7 +568,7 @@ export interface ResourceToTag {
  */
 export interface TagApplicationResult {
   arn: string;
-  type: 'ecs-service' | 'rds-db';
+  type: 'ecs-service' | 'rds-db' | 'rds-cluster';
   status: 'success' | 'failed' | 'skipped';
   error?: string;
   appliedTags?: LightsOutTags;
@@ -594,7 +594,7 @@ export interface ApplyTagsResult {
  */
 export interface TagVerificationResult {
   arn: string;
-  type: 'ecs-service' | 'rds-db';
+  type: 'ecs-service' | 'rds-db' | 'rds-cluster';
   status: 'verified' | 'mismatch' | 'not-found' | 'error';
   expectedTags: LightsOutTags;
   actualTags?: Record<string, string>;
@@ -636,7 +636,7 @@ export const ApplyTagsViaApiInputSchema = z.object({
     .array(
       z.object({
         arn: z.string(),
-        type: z.enum(['ecs-service', 'rds-db']),
+        type: z.enum(['ecs-service', 'rds-db', 'rds-cluster']),
         tags: z.object({
           'lights-out:managed': z.enum(['true', 'false']),
           'lights-out:project': z.string(),
@@ -655,7 +655,7 @@ export const VerifyTagsInputSchema = z.object({
     .array(
       z.object({
         arn: z.string(),
-        type: z.enum(['ecs-service', 'rds-db']),
+        type: z.enum(['ecs-service', 'rds-db', 'rds-cluster']),
         expectedTags: z.object({
           'lights-out:managed': z.enum(['true', 'false']),
           'lights-out:project': z.string(),
