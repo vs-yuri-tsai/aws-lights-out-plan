@@ -8,6 +8,7 @@ export { getResourceDefaults } from './base';
 // Export concrete handler implementations
 export { ECSServiceHandler } from './ecsService';
 export { RDSInstanceHandler } from './rdsInstance';
+export { AuroraClusterHandler } from './auroraCluster';
 
 // Export factory function
 export { getHandler } from './factory';

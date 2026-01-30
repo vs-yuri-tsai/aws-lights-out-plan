@@ -29,8 +29,9 @@ src/
 │   └── tag-discovery.ts # Tag-based resource discovery
 ├── handlers/
 │   ├── base.ts         # Abstract ResourceHandler interface
-│   ├── ecsService.ts  # ECS service handler
-│   └── rdsInstance.ts # RDS instance handler
+│   ├── ecsService.ts     # ECS service handler
+│   ├── rdsInstance.ts    # RDS instance handler
+│   └── auroraCluster.ts  # Aurora cluster handler
 └── utils/
     └── logger.ts       # Pino logger setup
 ```
@@ -180,6 +181,58 @@ resource_defaults:
 **Teams 通知訊息範例：**
 
 - 成功：`DB instance stop initiated (status: stopping, was: available). Full stop takes ~5-10 minutes.`
+- 失敗：`Stop operation failed`
+
+## Aurora Cluster 配置
+
+**問題：** Aurora Cluster 啟動/停止與 RDS Instance 類似需要 5-10 分鐘完成，但有幾個關鍵差異。
+
+**與 RDS Instance 的差異：**
+
+| 面向             | Aurora Cluster                                   | RDS Instance                                       |
+| ---------------- | ------------------------------------------------ | -------------------------------------------------- |
+| Start/Stop API   | `StartDBClusterCommand` / `StopDBClusterCommand` | `StartDBInstanceCommand` / `StopDBInstanceCommand` |
+| Describe API     | `DescribeDBClustersCommand` → `DBClusters[]`     | `DescribeDBInstancesCommand` → `DBInstances[]`     |
+| Status 欄位      | `DBCluster.Status`                               | `DBInstance.DBInstanceStatus`                      |
+| ARN 格式         | `arn:aws:rds:region:account:cluster:cluster-id`  | `arn:aws:rds:region:account:db:instance-id`        |
+| Stop 時 Snapshot | **不支援**                                       | 支援（`skipSnapshot` 配置）                        |
+| 連鎖效應         | 停止 Cluster 會自動停止所有 member instances     | 僅影響單一 instance                                |
+
+**配置參數：**
+
+| 參數               | 類型   | 預設值 | 說明                                   |
+| ------------------ | ------ | ------ | -------------------------------------- |
+| `waitAfterCommand` | number | 60     | 發送命令後等待秒數，確認狀態轉換已開始 |
+
+**注意：** Aurora Cluster 不支援 `skipSnapshot` 參數。
+
+**配置範例：**
+
+```yaml
+resource_defaults:
+  rds-cluster:
+    waitAfterCommand: 60
+    # Aurora Cluster 不支援 skipSnapshot
+```
+
+**Cluster vs Member Instance 衝突處理：**
+
+若同時標記 Aurora Cluster 和其 member instances 為 `lights-out:managed=true`：
+
+- **STOP**：停止 cluster 會自動停止 member instances → RDS Instance handler 執行時 instance 已是 `stopping`/`stopped`（idempotent check 會正確處理）
+- **START**：啟動 cluster 會自動啟動 member instances → RDS Instance handler 執行時 instance 已是 `starting`/`available`（idempotent check 會正確處理）
+- **建議**：僅標記 Aurora Cluster，不標記 member instances
+
+**建議 Priority 配置：**
+
+| 資源           | 建議 Priority | START 順序          | STOP 順序 |
+| -------------- | ------------- | ------------------- | --------- |
+| Aurora Cluster | 10-20         | 先啟動（DB 先就緒） | 後停止    |
+| ECS Service    | 30-50         | 後啟動（等 DB）     | 先停止    |
+
+**Teams 通知訊息範例：**
+
+- 成功：`DB cluster stop initiated (status: stopping, was: available). All member instances will also stop. Full stop takes ~5-10 minutes.`
 - 失敗：`Stop operation failed`
 
 ## Known Issues & Workarounds

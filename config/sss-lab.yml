@@ -17,6 +17,7 @@ discovery:
   resource_types:
     - ecs:service
     - rds:db
+    - rds:cluster
 resource_defaults:
   ecs-service:
     waitForStable: true
@@ -30,6 +31,11 @@ resource_defaults:
     # so we don't wait for completion to avoid Lambda timeout.
     waitAfterCommand: 60 # Wait 60s after command to confirm state transition started
     skipSnapshot: true # Don't create snapshot on stop (dev environment)
+  rds-cluster:
+    # Aurora Cluster: same fire-and-forget mode as rds-db.
+    # Note: Aurora Cluster does NOT support skipSnapshot on stop.
+    # Stopping a cluster automatically stops all member instances.
+    waitAfterCommand: 60
 schedules:
   default:
     timezone: Asia/Taipei

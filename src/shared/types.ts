@@ -309,6 +309,23 @@ export interface RDSResourceDefaults {
 }
 
 /**
+ * Aurora Cluster resource defaults configuration.
+ *
+ * Aurora Clusters use the same "fire-and-forget" approach as RDS Instances.
+ * Key difference: Aurora Cluster stop does NOT support creating a snapshot.
+ * Stopping a cluster automatically stops all member instances.
+ */
+export interface AuroraClusterResourceDefaults {
+  /**
+   * Seconds to wait after sending start/stop command before returning.
+   * This brief wait confirms the operation has begun (status changes to 'starting' or 'stopping').
+   * Default: 60 seconds.
+   */
+  waitAfterCommand?: number;
+  // Note: Aurora Cluster does NOT support skipSnapshot on stop
+}
+
+/**
  * Schedule action configuration for start or stop operations.
  * Used in group_schedules for regional scheduling.
  */

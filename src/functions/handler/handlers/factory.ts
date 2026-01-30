@@ -7,6 +7,7 @@
 import type { DiscoveredResource, ResourceHandler, Config } from '@shared/types';
 import { ECSServiceHandler } from './ecsService';
 import { RDSInstanceHandler } from './rdsInstance';
+import { AuroraClusterHandler } from './auroraCluster';
 
 /**
  * Get a handler for a specific resource type.
@@ -26,6 +27,8 @@ export function getHandler(
       return new ECSServiceHandler(resource, config);
     case 'rds-db':
       return new RDSInstanceHandler(resource, config);
+    case 'rds-cluster':
+      return new AuroraClusterHandler(resource, config);
     default:
       return null;
   }
